@@ -1,6 +1,6 @@
 import { Text, View, ScrollView, Pressable, TouchableOpacity } from 'react-native'
 import React from 'react'
-import { userProjects, userVisibleTasks } from '@/dumyData/data'
+import { userProjects, userVisibleTasks } from '@/data/data'
 import { Link, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { styles } from './styles';

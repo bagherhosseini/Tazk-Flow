@@ -9,7 +9,7 @@ import {
     StatusBar,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { userProjects, Project } from '../../../dumyData/data';
+import { userProjects, Project } from '../../../data/data';
 
 export default function ProjectsScreen() {
     const router = useRouter();

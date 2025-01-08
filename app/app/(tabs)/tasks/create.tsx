@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Project, Task, userProjects } from '../../../dumyData/data'; // Import userProjects
+import { Project, Task, userProjects } from '../../../data/data'; // Import userProjects
 
 export default function CreateScreen() {
     const router = useRouter();

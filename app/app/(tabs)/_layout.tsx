@@ -130,6 +130,7 @@ export default function RootLayout() {
     { label: 'Personal', icon: 'bag-personal', route: '/tasks/personalTasks' },
     { label: 'Project', icon: 'card-bulleted', route: '/tasks/projectsTasks' },
     { label: 'Projects', icon: 'card-bulleted', route: '/projects/projects' },
+    { label: 'Profile', icon: 'card-bulleted', route: '/profile' },
   ];
 
   useEffect(() => {

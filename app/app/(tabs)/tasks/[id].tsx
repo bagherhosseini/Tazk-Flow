@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View, ScrollView } from 'react-native';
 import React from 'react';
 import { useLocalSearchParams } from 'expo-router';
-import { tasks } from '@/dumyData/data';
+import { tasks } from '@/data/data';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 

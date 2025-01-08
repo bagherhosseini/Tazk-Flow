@@ -9,7 +9,7 @@ import {
     FlatList,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { allProjectTasks, projects, Task } from '../../../dumyData/data';
+import { allProjectTasks, projects, Task } from '../../../data/data';
 
 export default function ProjectDetailScreen() {
     const { id } = useLocalSearchParams();

@@ -1,6 +1,6 @@
 import { Text, View, Button, Pressable, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useClerk, useUser } from '@clerk/clerk-expo';
-import { userVisibleTasks, userProjects } from '@/dumyData/data';
+import { userVisibleTasks, userProjects } from '@/data/data';
 import { Link, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { styles } from './styles';
