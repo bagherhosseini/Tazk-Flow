@@ -126,11 +126,11 @@ export default function RootLayout() {
   };
 
   const drawerItems = [
-    { label: 'Home', icon: 'home-circle', route: '/home' },
-    { label: 'Personal', icon: 'bag-personal', route: '/tasks/personalTasks' },
-    { label: 'Project', icon: 'card-bulleted', route: '/tasks/projectsTasks' },
-    { label: 'Projects', icon: 'card-bulleted', route: '/projects/projects' },
-    { label: 'Profile', icon: 'card-bulleted', route: '/profile' },
+    { label: 'Home', icon: 'home', route: '/home' },
+    { label: 'Personal', icon: 'folder-account', route: '/tasks/personalTasks' },
+    { label: 'Project', icon: 'folder', route: '/tasks/projectsTasks' },
+    { label: 'Projects', icon: 'layers', route: '/projects/projects' },
+    { label: 'Profile', icon: 'account', route: '/profile' },
   ];
 
   useEffect(() => {
