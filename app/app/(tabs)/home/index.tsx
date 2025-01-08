@@ -26,7 +26,6 @@ export default function Index() {
 
   return (
     <ScrollView style={styles.container}>
-      <Button title="Log out" onPress={() => signOut({ redirectUrl: '/' })} />
       <View style={styles.header}>
         <Text style={styles.welcomeText}>Welcome back,</Text>
         <Text style={styles.userName}>{user?.firstName || 'User'}</Text>
