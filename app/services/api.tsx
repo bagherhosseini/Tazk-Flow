@@ -14,16 +14,13 @@ export type Task = {
     id: string;
     title: string;
     description: string;
-    status: string;
+    status?: string;
     priority: 'low' | 'medium' | 'high';
-    dueDate: string;
-    createdAt: string;
-    project?: {
-        id: string;
-        name: string;
-    };
-    assignedTo: string;
-    createdBy: string;
+    due_date: string;
+    created_at: string;
+    project?: string; 
+    assigned_to?: string;
+    created_by?: string;
     tags: string[];
 };
 
@@ -72,6 +69,16 @@ class ApiService {
             method: 'POST',
             headers,
             body: JSON.stringify(project),
+        });
+        return await response.json();
+    }
+
+    static async createTask(token: string, task: Omit<Task, 'id' | 'createdAt' | 'createdBy'>): Promise<Task> {
+        const headers = this.getHeaders(token);
+        const response = await fetch(`${API_URL}/tasks/`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(task),
         });
         return await response.json();
     }

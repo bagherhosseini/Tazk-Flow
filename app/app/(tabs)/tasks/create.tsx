@@ -13,9 +13,13 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Project, Task, userProjects } from '../../../data/data'; // Import userProjects
+import { Task } from '../../../data/data';
+import { Project } from '@/services/api';
+import { useAuth } from '@clerk/clerk-expo';
+import ApiService from '@/services/api';
 
 export default function CreateScreen() {
+    const { getToken } = useAuth();
     const router = useRouter();
     const [title, setTitle] = React.useState('');
     const [description, setDescription] = React.useState('');
@@ -26,26 +30,42 @@ export default function CreateScreen() {
     const [showDatePicker, setShowDatePicker] = React.useState(false);
     const [showTimePicker, setShowTimePicker] = React.useState(false);
     const [priority, setPriority] = React.useState<Task['priority']>('medium');
+    const [userProjects, setUserProjects] = React.useState<Project[]>();
+
+    React.useEffect(() => {
+        async function fetchTasks() {
+            try {
+                const token = await getToken();
+                if (!token) return;
+                const tasks = await ApiService.getUserProjects(token);
+                setUserProjects(tasks);
+            } catch (error) {
+                console.error(error);
+            }
+        };
+
+        fetchTasks();
+    }, []);
 
     const onCreatePress = async () => {
         try {
-            const newTask: Partial<Task> = {
+            const newTask = {
                 title,
                 description,
                 priority,
-                dueDate: dueDate.toISOString(),
-                createdAt: new Date().toISOString(),
-                status: 'todo',
-                project: isProjectTask && selectedProject ? {
-                    id: selectedProject.id,
-                    name: selectedProject.name,
-                } : undefined,
+                due_date: dueDate.toISOString(),
+                created_at: new Date().toISOString(),
+                project: isProjectTask && selectedProject ? selectedProject.id : undefined,
                 tags: [],
                 attachments: [],
                 comments: [],
             };
+            console.log(newTask);
+            const token = await getToken();
+            if (!token) return;
+            const createdTask = await ApiService.createTask(token, newTask);
 
-            console.log('Creating new task:', newTask);
+            console.log('Creating new task:', createdTask);
             router.back();
         } catch (err) {
             console.error(JSON.stringify(err, null, 2));
@@ -104,18 +124,21 @@ export default function CreateScreen() {
                                 </View>
 
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.projectList}>
-                                    {userProjects.map((project) => (
-                                        <TouchableOpacity
-                                            key={project.id}
-                                            style={[
-                                                styles.projectChip,
-                                                selectedProject?.id === project.id && styles.projectChipSelected,
-                                            ]}
-                                            onPress={() => setSelectedProject(project)}
-                                        >
-                                            <Text style={styles.projectChipText}>{project.name}</Text>
-                                        </TouchableOpacity>
-                                    ))}
+                                    {userProjects ?
+                                        userProjects.map((project) => (
+                                            <TouchableOpacity
+                                                key={project.id}
+                                                style={[
+                                                    styles.projectChip,
+                                                    selectedProject?.id === project.id && styles.projectChipSelected,
+                                                ]}
+                                                onPress={() => setSelectedProject(project)}
+                                            >
+                                                <Text style={styles.projectChipText}>{project.name}</Text>
+                                            </TouchableOpacity>
+                                        ))
+                                        : <Text>No project</Text>
+                                    }
                                 </ScrollView>
                             </View>
                         )}

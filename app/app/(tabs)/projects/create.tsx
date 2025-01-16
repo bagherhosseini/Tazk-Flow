@@ -41,15 +41,12 @@ export default function CreateProjectScreen() {
                     : DEFAULT_TASK_STATUSES,
                 due_date: hasDueDate ? dueDate.toISOString() : undefined,
             };
-    
-            console.log('Creating project:', newProjectData);
             
             const token = await getToken();
             if (!token) return;
             const createdProject = await ApiService.createProject(token, newProjectData);
             
             console.log('Project created successfully:', createdProject);
-    
             router.back();
         } catch (error) {
             console.error('Error creating project:', error);
