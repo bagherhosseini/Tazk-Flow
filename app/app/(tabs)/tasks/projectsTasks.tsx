@@ -1,12 +1,17 @@
 import { Text, View, ScrollView, Pressable, TouchableOpacity } from 'react-native'
-import React from 'react'
-import { userProjects, userVisibleTasks } from '@/data/data'
+import React, { useEffect, useState } from 'react'
+// import { userProjects, userVisibleTasks } from '@/data/data'
 import { Link, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { styles } from './styles';
+import { useAuth } from '@clerk/clerk-expo';
+import ApiService, { Project, Task } from '@/services/api';
 
 export default function ProjectsTasks() {
     const router = useRouter();
+    const { getToken } = useAuth();
+    const [tasks, setTasks] = useState<Task[]>([]);
+    const [userProjects, setUserProjects] = useState<Project[]>([]);
 
     const getPriorityColor = (priority: string) => {
         switch (priority) {
@@ -21,6 +26,23 @@ export default function ProjectsTasks() {
         }
     };
 
+    useEffect(() => {
+        async function fetchData() {
+            try {
+                const token = await getToken();
+                if (!token) return;
+                const tasks = await ApiService.getProjectTasks(token);
+                const userProjects = await ApiService.getUserProjects(token);
+                setUserProjects(userProjects);
+                setTasks(tasks);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        fetchData();
+    }, []);
+
     const handleTaskPress = (taskId: string) => {
         router.push(`/tasks/${taskId}`);
     }
@@ -33,12 +55,7 @@ export default function ProjectsTasks() {
             </View>
 
             <View style={styles.content}>
-                {userProjects.length === 0 ? (
-                    <View style={styles.emptyState}>
-                        <MaterialCommunityIcons name="folder-outline" size={48} color="#808080" />
-                        <Text style={styles.emptyText}>No project tasks available</Text>
-                    </View>
-                ) : (
+                {tasks ? (
                     userProjects.map((project) => (
                         <View key={project.id} style={styles.projectContainer}>
                             <View style={styles.projectHeaderContainer}>
@@ -50,8 +67,8 @@ export default function ProjectsTasks() {
                                 <Text style={styles.projectTitle}>{project.name}</Text>
                             </View>
 
-                            {userVisibleTasks
-                                .filter((task) => task.project?.id === project.id)
+                            {tasks
+                                .filter((task) => task.project === project.id)
                                 .map((task) => (
                                     <TouchableOpacity key={task.id} style={styles.taskCard} onPress={() => handleTaskPress(task.id)}>
                                         <View style={styles.taskHeader}>
@@ -71,7 +88,7 @@ export default function ProjectsTasks() {
                                         </Text>
                                         <View style={styles.taskFooter}>
                                             <Text style={styles.taskDate}>
-                                                Due: {new Date(task.dueDate).toLocaleDateString()}
+                                                Due: {new Date(task.due_date).toLocaleDateString()}
                                             </Text>
                                             <View style={[
                                                 styles.statusBadge,
@@ -88,6 +105,11 @@ export default function ProjectsTasks() {
                                 ))}
                         </View>
                     ))
+                ) : (
+                    <View style={styles.emptyState}>
+                        <MaterialCommunityIcons name="folder-outline" size={48} color="#808080" />
+                        <Text style={styles.emptyText}>No project tasks available</Text>
+                    </View>
                 )}
             </View>
         </ScrollView>

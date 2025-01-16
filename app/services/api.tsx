@@ -101,6 +101,15 @@ class ApiService {
         const data = await response.json();
         return data.tasks;
     }
+
+    static async getProjectTasks(token: string): Promise<Task[]> {
+        const headers = this.getHeaders(token);
+        const response = await fetch(`${API_URL}/tasks/project_tasks/`, {
+            headers,
+        });
+        const data = await response.json();
+        return data.tasks;
+    }
 }
 
 export default ApiService;
