@@ -9,20 +9,40 @@ import {
     FlatList,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { allProjectTasks, projects, Task } from '../../../data/data';
+import { useAuth } from '@clerk/clerk-expo';
+import ApiService, { Project, Task } from '@/services/api';
 
 export default function ProjectDetailScreen() {
     const { id } = useLocalSearchParams();
+    const projectId = Array.isArray(id) ? id[0] : id;
+    const { getToken } = useAuth();
+    const [project, setProject] = React.useState<Project>();
     const router = useRouter();
 
-    const project = projects.find(p => p.id === id);
-    const projectTasks = allProjectTasks.filter(task => task.project?.id === id);
+    // const project = projects.find(p => p.id === id);
+    // const projectTasks = allProjectTasks.filter(task => task.project?.id === id);
 
     const [selectedStatus, setSelectedStatus] = React.useState('all');
     const [sortBy, setSortBy] = React.useState('dueDate'); // 'dueDate', 'priority', 'createdAt'
 
+    React.useEffect(() => {
+        async function fetchData() {
+            try {
+                const token = await getToken();
+                if (!token) return;
+                const project = await ApiService.getProject(token, projectId);
+                setProject(project);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        fetchData();
+    }, [projectId]);
+
     const filteredTasks = React.useMemo(() => {
-        let tasks = [...projectTasks];
+        if (!project || !project.tasks) return null;
+        let tasks = [...project.tasks];
 
         // Apply status filter
         if (selectedStatus !== 'all') {
@@ -33,20 +53,20 @@ export default function ProjectDetailScreen() {
         tasks.sort((a, b) => {
             switch (sortBy) {
                 case 'dueDate':
-                    return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+                    return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
                 case 'priority': {
                     const priorityWeight = { high: 3, medium: 2, low: 1 };
                     return priorityWeight[b.priority] - priorityWeight[a.priority];
                 }
                 case 'createdAt':
-                    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+                    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
                 default:
                     return 0;
             }
         });
 
         return tasks;
-    }, [projectTasks, selectedStatus, sortBy]);
+    }, [project, selectedStatus, sortBy]);
 
     const getPriorityColor = (priority: string) => {
         switch (priority) {
@@ -61,7 +81,7 @@ export default function ProjectDetailScreen() {
         }
     };
 
-    const renderTask = ({ item } : {item : Task}) => (
+    const renderTask = ({ item }: { item: Task }) => (
         <TouchableOpacity
             style={styles.taskCard}
             onPress={() => router.push(`/tasks/${item.id}`)}
@@ -84,16 +104,16 @@ export default function ProjectDetailScreen() {
                         </View>
                     ))}
                 </View>
-                <Text style={styles.dateText}>Due: {new Date(item.dueDate).toLocaleDateString()}</Text>
+                <Text style={styles.dateText}>Due: {new Date(item.due_date).toLocaleDateString()}</Text>
             </View>
 
             <View style={styles.taskFooter}>
-                <View style={styles.statusChip}>
+                {/* <View style={styles.statusChip}>
                     <Text style={styles.statusText}>{item.status.replace('_', ' ')}</Text>
-                </View>
-                <Text style={styles.commentCount}>
+                </View> */}
+                {/* <Text style={styles.commentCount}>
                     {item.comments.length} comments
-                </Text>
+                </Text> */}
             </View>
         </TouchableOpacity>
     );
@@ -136,7 +156,7 @@ export default function ProjectDetailScreen() {
                     >
                         <Text style={styles.filterChipText}>All</Text>
                     </TouchableOpacity>
-                    {project.taskStatuses.map(status => (
+                    {project.task_statuses.map(status => (
                         <TouchableOpacity
                             key={status}
                             style={[
@@ -169,13 +189,19 @@ export default function ProjectDetailScreen() {
                 </View>
             </View>
 
-            <FlatList
-                data={filteredTasks}
-                renderItem={renderTask}
-                keyExtractor={item => item.id}
-                contentContainerStyle={styles.taskList}
-                showsVerticalScrollIndicator={false}
-            />
+            {
+                project.tasks ? (
+                    <FlatList
+                        data={filteredTasks}
+                        renderItem={renderTask}
+                        keyExtractor={item => item.id}
+                        contentContainerStyle={styles.taskList}
+                        showsVerticalScrollIndicator={false}
+                    />
+                ) : (
+                    <Text style={styles.errorText}>No tasks found</Text>
+                )
+            }
         </SafeAreaView>
     );
 }

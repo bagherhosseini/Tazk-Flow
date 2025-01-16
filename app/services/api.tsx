@@ -8,6 +8,7 @@ export type Project = {
     task_statuses: string[];
     createdAt: string;
     due_date?: string;
+    tasks?: Task[];
 };
 
 export type Task = {
@@ -114,6 +115,14 @@ class ApiService {
     static async getTask(token: string, taskId: string): Promise<Task> {
         const headers = this.getHeaders(token);
         const response = await fetch(`${API_URL}/tasks/${taskId}/`, {
+            headers,
+        });
+        return await response.json();
+    }
+    
+    static async getProject(token: string, projectId: string): Promise<Project> {
+        const headers = this.getHeaders(token);
+        const response = await fetch(`${API_URL}/projects/${projectId}/`, {
             headers,
         });
         return await response.json();
