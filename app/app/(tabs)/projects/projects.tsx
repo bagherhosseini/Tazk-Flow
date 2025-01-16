@@ -9,10 +9,13 @@ import {
     StatusBar,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { userProjects, Project } from '../../../data/data';
+import { useAuth } from '@clerk/clerk-expo';
+import ApiService, { Project } from '@/services/api';
 
 export default function ProjectsScreen() {
     const router = useRouter();
+    const { getToken } = useAuth();
+    const [userProjects, setUserProjects] = React.useState<Project[]>([]);
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -24,6 +27,21 @@ export default function ProjectsScreen() {
                 return '#9CA3AF';
         }
     };
+
+    React.useEffect(() => {
+        async function fetchData() {
+            try {
+                const token = await getToken();
+                if (!token) return;
+                const projects = await ApiService.getUserProjects(token);
+                setUserProjects(projects);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        fetchData();
+    }, []);
 
     const handleProjectPress = (projectId: string) => {
         router.push(`/(tabs)/projects/${projectId}`);
@@ -52,7 +70,7 @@ export default function ProjectsScreen() {
 
                 <View style={styles.projectFooter}>
                     <View style={styles.statusList}>
-                        {item.taskStatuses.map((status: any, index: any) => (
+                        {item.task_statuses.map((status: any, index: any) => (
                             <Text key={status} style={styles.statusChip}>
                                 {status.replace('_', ' ')}
                             </Text>
@@ -62,9 +80,9 @@ export default function ProjectsScreen() {
                         <Text style={styles.dateText}>
                             Created: {new Date(item.createdAt).toLocaleDateString()}
                         </Text>
-                        {item.dueDate && (
+                        {item.due_date && (
                             <Text style={styles.dateText}>
-                                Due: {new Date(item.dueDate).toLocaleDateString()}
+                                Due: {new Date(item.due_date).toLocaleDateString()}
                             </Text>
                         )}
                     </View>
