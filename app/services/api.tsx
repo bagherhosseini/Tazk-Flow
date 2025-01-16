@@ -18,7 +18,8 @@ export type Task = {
     priority: 'low' | 'medium' | 'high';
     due_date: string;
     created_at: string;
-    project?: string; 
+    project?: string;
+    project_name?: string;
     assigned_to?: string;
     created_by?: string;
     tags: string[];
@@ -81,6 +82,15 @@ class ApiService {
             body: JSON.stringify(task),
         });
         return await response.json();
+    }
+
+    static async getAllVisibleTasks(token: string): Promise<Task[]> {
+        const headers = this.getHeaders(token);
+        const response = await fetch(`${API_URL}/tasks/user_visible_tasks/`, {
+            headers,
+        });
+        const data = await response.json();
+        return data.tasks;
     }
 }
 
