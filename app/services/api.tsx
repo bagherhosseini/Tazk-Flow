@@ -127,6 +127,73 @@ class ApiService {
         });
         return await response.json();
     }
+
+    static async updateProject(token: string, projectId: string, updates: Partial<Project>): Promise<Project> {
+        const headers = this.getHeaders(token);
+        const response = await fetch(`${API_URL}/projects/${projectId}/`, {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify(updates),
+        });
+        return await response.json();
+    }
+
+    // static async updateTask(token: string, taskId: string, updates: Partial<Task>): Promise<Task> {
+    //     const headers = this.getHeaders(token);
+    //     const response = await fetch(`${API_URL}/tasks/${taskId}/`, {
+    //         method: 'PATCH',
+    //         headers,
+    //         body: JSON.stringify(updates),
+    //     });
+    //     return await response.json();
+    // }
+
+    // // Teams
+    // static async getUserTeams(token: string): Promise<Team[]> {
+    //     const headers = this.getHeaders(token);
+    //     const response = await fetch(`${API_URL}/teams/`, {
+    //         headers,
+    //     });
+    //     return await response.json();
+    // }
+
+    // static async createTeam(token: string, team: Omit<Team, 'id'>): Promise<Team> {
+    //     const headers = this.getHeaders(token);
+    //     const response = await fetch(`${API_URL}/teams/`, {
+    //         method: 'POST',
+    //         headers,
+    //         body: JSON.stringify(team),
+    //     });
+    //     return await response.json();
+    // }
+
+    // // Comments
+    // static async getTaskComments(token: string, taskId: string): Promise<Comment[]> {
+    //     const headers = this.getHeaders(token);
+    //     const response = await fetch(`${API_URL}/comments/?task=${taskId}`, {
+    //         headers,
+    //     });
+    //     return await response.json();
+    // }
+
+    // static async createComment(token: string, comment: Omit<Comment, 'id' | 'createdAt' | 'createdBy'>): Promise<Comment> {
+    //     const headers = this.getHeaders(token);
+    //     const response = await fetch(`${API_URL}/comments/`, {
+    //         method: 'POST',
+    //         headers,
+    //         body: JSON.stringify(comment),
+    //     });
+    //     return await response.json();
+    // }
+
+    // // Error handling helper
+    // static async handleResponse(response: Response) {
+    //     if (!response.ok) {
+    //         const error = await response.json();
+    //         throw new Error(error.message || 'An error occurred');
+    //     }
+    //     return response.json();
+    // }
 }
 
 export default ApiService;
