@@ -52,6 +52,7 @@ export default function CreateScreen() {
             const newTask = {
                 title,
                 description,
+                status: isProjectTask ? undefined : 'Todo',
                 priority,
                 due_date: dueDate.toISOString(),
                 created_at: new Date().toISOString(),

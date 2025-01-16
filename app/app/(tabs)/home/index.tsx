@@ -35,8 +35,6 @@ export default function Index() {
         if (!token) return;
         const tasks = await ApiService.getAllVisibleTasks(token);
         setUserVisibleTasks(tasks);
-
-        console.log(tasks)
         const uniqueProjects = tasks
           .filter(task => task.project)
           .reduce((acc: { [key: string]: Project }, task) => {
