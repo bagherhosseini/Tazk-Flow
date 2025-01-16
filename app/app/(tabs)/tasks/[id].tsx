@@ -1,13 +1,32 @@
 import { StyleSheet, Text, View, ScrollView } from 'react-native';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useLocalSearchParams } from 'expo-router';
-import { tasks } from '@/data/data';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { format } from 'date-fns';
+import { useAuth } from '@clerk/clerk-expo';
+import ApiService, { Task as TaskType} from '@/services/api';
 
 export default function Task() {
     const { id } = useLocalSearchParams();
-    const task = tasks.find((task) => task.id === id);
+    const taskId = Array.isArray(id) ? id[0] : id;
+    const { getToken } = useAuth();
+    const [task, setTask] = React.useState<TaskType>();
+
+    useEffect(() => {
+        async function fetchData() {
+            try {
+                const token = await getToken();
+                if (!token) return;
+                const task = await ApiService.getTask(token, taskId);
+                setTask(task);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        fetchData();
+    }, [taskId]);
+
 
     if (!task) {
         return (
@@ -54,7 +73,7 @@ export default function Task() {
                             <MaterialCommunityIcons name="folder" size={20} color="#FFFFFF" />
                             <Text style={styles.sectionTitle}>Project</Text>
                         </View>
-                        <Text style={styles.projectName}>{task.project.name}</Text>
+                        <Text style={styles.projectName}>{task.project_name}</Text>
                     </View>
                 )}
 
@@ -75,13 +94,13 @@ export default function Task() {
                         <View style={styles.timelineItem}>
                             <Text style={styles.timelineLabel}>Due Date</Text>
                             <Text style={styles.timelineValue}>
-                                {format(new Date(task.dueDate), 'MMM dd, yyyy')}
+                                {format(new Date(task.due_date), 'MMM dd, yyyy')}
                             </Text>
                         </View>
                         <View style={styles.timelineItem}>
                             <Text style={styles.timelineLabel}>Created</Text>
                             <Text style={styles.timelineValue}>
-                                {format(new Date(task.createdAt), 'MMM dd, yyyy')}
+                                {format(new Date(task.created_at), 'MMM dd, yyyy')}
                             </Text>
                         </View>
                     </View>
@@ -103,7 +122,7 @@ export default function Task() {
                     </View>
                 )}
 
-                {task.comments && task.comments.length > 0 && (
+                {/* {task.comments && task.comments.length > 0 && (
                     <View style={styles.section}>
                         <View style={styles.sectionHeader}>
                             <MaterialCommunityIcons name="comment-multiple" size={20} color="#FFFFFF" />
@@ -119,7 +138,7 @@ export default function Task() {
                             </View>
                         ))}
                     </View>
-                )}
+                )} */}
             </View>
         </ScrollView>
     );
