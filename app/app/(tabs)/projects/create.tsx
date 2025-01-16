@@ -13,10 +13,13 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import ApiService from '@/services/api';
+import { useAuth } from '@clerk/clerk-expo';
 
 const DEFAULT_TASK_STATUSES = ['todo', 'in_progress', 'completed'];
 
 export default function CreateProjectScreen() {
+    const { getToken } = useAuth();
     const router = useRouter();
     const [name, setName] = React.useState('');
     const [description, setDescription] = React.useState('');
@@ -26,21 +29,31 @@ export default function CreateProjectScreen() {
     const [customStatuses, setCustomStatuses] = React.useState('');
     const [useCustomStatuses, setUseCustomStatuses] = React.useState(false);
 
-    const handleCreate = () => {
-        const newProject = {
-            id: `proj${Date.now()}`,
-            name,
-            description,
-            status: 'active',
-            taskStatuses: useCustomStatuses
-                ? customStatuses.split(',').map(s => s.trim().toLowerCase().replace(/\s+/g, '_'))
-                : DEFAULT_TASK_STATUSES,
-            createdAt: new Date().toISOString(),
-            dueDate: hasDueDate ? dueDate.toISOString() : undefined,
-        };
-
-        console.log('Creating project:', newProject);
-        router.back();
+    const handleCreate = async () => {
+        try {
+            const status : 'active' | 'completed' | 'on_hold' = 'active';
+            const newProjectData = {
+                name,
+                description,
+                status,
+                task_statuses: useCustomStatuses
+                    ? customStatuses.split(',').map(s => s.trim().toLowerCase().replace(/\s+/g, '_'))
+                    : DEFAULT_TASK_STATUSES,
+                due_date: hasDueDate ? dueDate.toISOString() : undefined,
+            };
+    
+            console.log('Creating project:', newProjectData);
+            
+            const token = await getToken();
+            if (!token) return;
+            const createdProject = await ApiService.createProject(token, newProjectData);
+            
+            console.log('Project created successfully:', createdProject);
+    
+            router.back();
+        } catch (error) {
+            console.error('Error creating project:', error);
+        }
     };
 
     return (
