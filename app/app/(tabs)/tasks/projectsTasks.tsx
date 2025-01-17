@@ -1,17 +1,16 @@
 import { Text, View, ScrollView, Pressable, TouchableOpacity } from 'react-native'
 import React, { useEffect, useState } from 'react'
-// import { userProjects, userVisibleTasks } from '@/data/data'
 import { Link, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { styles } from './styles';
 import { useAuth } from '@clerk/clerk-expo';
-import ApiService, { Project, Task } from '@/services/api';
+import ApiService, { Project } from '@/services/api';
 
 export default function ProjectsTasks() {
     const router = useRouter();
     const { getToken } = useAuth();
-    const [tasks, setTasks] = useState<Task[]>([]);
-    const [userProjects, setUserProjects] = useState<Project[]>([]);
+    const [projects, setProjects] = useState<Project[]>([]);
+    const [loading, setLoading] = useState(true);
 
     const getPriorityColor = (priority: string) => {
         switch (priority) {
@@ -31,12 +30,12 @@ export default function ProjectsTasks() {
             try {
                 const token = await getToken();
                 if (!token) return;
-                const tasks = await ApiService.getProjectTasks(token);
                 const userProjects = await ApiService.getUserProjects(token);
-                setUserProjects(userProjects);
-                setTasks(tasks);
+                setProjects(userProjects);
             } catch (error) {
                 console.error(error);
+            } finally {
+                setLoading(false);
             }
         }
 
@@ -47,6 +46,15 @@ export default function ProjectsTasks() {
         router.push(`/tasks/${taskId}`);
     }
 
+    if (loading) {
+        return (
+            <View style={styles.emptyState}>
+                <MaterialCommunityIcons name="folder-outline" size={48} color="#808080" />
+                <Text style={styles.emptyText}>Loading projects...</Text>
+            </View>
+        );
+    }
+
     return (
         <ScrollView style={styles.container}>
             <View style={styles.header}>
@@ -55,8 +63,13 @@ export default function ProjectsTasks() {
             </View>
 
             <View style={styles.content}>
-                {tasks ? (
-                    userProjects.map((project) => (
+                {projects.length === 0 ? (
+                    <View style={styles.emptyState}>
+                        <MaterialCommunityIcons name="folder-outline" size={48} color="#808080" />
+                        <Text style={styles.emptyText}>No project tasks available</Text>
+                    </View>
+                ) : (
+                    projects.map((project) => (
                         <View key={project.id} style={styles.projectContainer}>
                             <View style={styles.projectHeaderContainer}>
                                 <View style={styles.projectIcon}>
@@ -67,10 +80,13 @@ export default function ProjectsTasks() {
                                 <Text style={styles.projectTitle}>{project.name}</Text>
                             </View>
 
-                            {tasks
-                                .filter((task) => task.project === project.id)
-                                .map((task) => (
-                                    <TouchableOpacity key={task.id} style={styles.taskCard} onPress={() => handleTaskPress(task.id)}>
+                            {project.tasks && project.tasks.length > 0 ? (
+                                project.tasks.map((task) => (
+                                    <TouchableOpacity 
+                                        key={task.id} 
+                                        style={styles.taskCard} 
+                                        onPress={() => handleTaskPress(task.id)}
+                                    >
                                         <View style={styles.taskHeader}>
                                             <Text style={styles.taskTitle}>{task.title}</Text>
                                             <View style={[
@@ -102,14 +118,12 @@ export default function ProjectsTasks() {
                                             </View>
                                         </View>
                                     </TouchableOpacity>
-                                ))}
+                                ))
+                            ) : (
+                                <Text style={styles.noTasksText}>No tasks in this project</Text>
+                            )}
                         </View>
                     ))
-                ) : (
-                    <View style={styles.emptyState}>
-                        <MaterialCommunityIcons name="folder-outline" size={48} color="#808080" />
-                        <Text style={styles.emptyText}>No project tasks available</Text>
-                    </View>
                 )}
             </View>
         </ScrollView>

@@ -1,15 +1,49 @@
 // Types
-export type Project = {
+// export type Project = {
+//     id: string;
+//     name: string;
+//     description: string;
+//     status: 'active' | 'completed' | 'on_hold';
+//     teamId?: string;
+//     task_statuses: string[];
+//     created_at: string;
+//     due_date?: string;
+//     tasks?: Task[];
+// };
+
+export interface Project {
     id: string;
     name: string;
     description: string;
     status: 'active' | 'completed' | 'on_hold';
-    teamId?: string;
+    team?: string;
     task_statuses: string[];
-    createdAt: string;
+    created_at: string;
     due_date?: string;
-    tasks?: Task[];
-};
+    tasks: Task[];
+}
+
+export interface BasicProject {
+    id: string;
+    name: string;
+    description: string;
+    status: 'active' | 'completed' | 'on_hold';
+    team?: string;
+    task_statuses: string[];
+    created_at: string;
+    due_date?: string;
+}
+
+export interface CreateProject {
+    id: string;
+    name: string;
+    description: string;
+    status: 'active' | 'completed' | 'on_hold';
+    team?: string;
+    task_statuses: string[];
+    created_at: string;
+    due_date?: string;
+}
 
 export type Task = {
     id: string;
@@ -19,8 +53,21 @@ export type Task = {
     priority: 'low' | 'medium' | 'high';
     due_date: string;
     created_at: string;
+    project?: Project;
+    assigned_to?: string;
+    created_by?: string;
+    tags: string[];
+};
+
+export type CreateTask = {
+    id: string;
+    title: string;
+    description: string;
+    status?: string;
+    priority: 'low' | 'medium' | 'high';
+    due_date: string;
+    created_at: string;
     project?: string;
-    project_name?: string;
     assigned_to?: string;
     created_by?: string;
     tags: string[];
@@ -44,6 +91,11 @@ export type Team = {
     }[];
 };
 
+export interface TasksResponse {
+    personal_tasks: Task[];
+    project_tasks: Project[];
+}
+
 const API_URL = 'http://192.168.0.11:8000';
 
 class ApiService {
@@ -64,9 +116,18 @@ class ApiService {
         return data.projects;
     }
 
-    static async createProject(token: string, project: Omit<Project, 'id' | 'createdAt'>): Promise<Project> {
+    static async getUserBasicProjects(token: string): Promise<BasicProject[]> {
         const headers = this.getHeaders(token);
-        console.log(project);
+        const response = await fetch(`${API_URL}/projects/basic_projects`, {
+            method: 'GET',
+            headers,
+        });
+        const data = await response.json();
+        return data.projects;
+    }
+
+    static async createProject(token: string, project: Omit<CreateProject, 'id' | 'created_at'>): Promise<Project> {
+        const headers = this.getHeaders(token);
         const response = await fetch(`${API_URL}/projects/`, {
             method: 'POST',
             headers,
@@ -75,7 +136,7 @@ class ApiService {
         return await response.json();
     }
 
-    static async createTask(token: string, task: Omit<Task, 'id' | 'createdAt' | 'createdBy'>): Promise<Task> {
+    static async createTask(token: string, task: Omit<CreateTask, 'id' | 'created_at' | 'created_by'>): Promise<Task> {
         const headers = this.getHeaders(token);
         const response = await fetch(`${API_URL}/tasks/`, {
             method: 'POST',
@@ -85,13 +146,12 @@ class ApiService {
         return await response.json();
     }
 
-    static async getAllVisibleTasks(token: string): Promise<Task[]> {
+    static async getAllVisibleTasks(token: string): Promise<TasksResponse> {
         const headers = this.getHeaders(token);
         const response = await fetch(`${API_URL}/tasks/user_visible_tasks/`, {
             headers,
         });
-        const data = await response.json();
-        return data.tasks;
+        return await response.json();
     }
 
     static async getPersonalTasks(token: string): Promise<Task[]> {
@@ -131,6 +191,17 @@ class ApiService {
     static async updateProject(token: string, projectId: string, updates: Partial<Project>): Promise<Project> {
         const headers = this.getHeaders(token);
         const response = await fetch(`${API_URL}/projects/${projectId}/`, {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify(updates),
+        });
+        return await response.json();
+    }
+
+    // updateTask
+    static async updateTask(token: string, taskId: string, updates: Partial<Task>): Promise<Task> {
+        const headers = this.getHeaders(token);
+        const response = await fetch(`${API_URL}/tasks/${taskId}/`, {
             method: 'PATCH',
             headers,
             body: JSON.stringify(updates),

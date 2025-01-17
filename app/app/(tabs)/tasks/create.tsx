@@ -13,8 +13,8 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Task } from '../../../data/data';
-import { Project } from '@/services/api';
+import { projects, Task } from '../../../data/data';
+import { BasicProject } from '@/services/api';
 import { useAuth } from '@clerk/clerk-expo';
 import ApiService from '@/services/api';
 
@@ -24,20 +24,20 @@ export default function CreateScreen() {
     const [title, setTitle] = React.useState('');
     const [description, setDescription] = React.useState('');
     const [isProjectTask, setIsProjectTask] = React.useState(false);
-    const [selectedProject, setSelectedProject] = React.useState<Project | null>(null);
+    const [selectedProject, setSelectedProject] = React.useState<BasicProject | null>(null);
     const [showProjectCreate, setShowProjectCreate] = React.useState(false);
     const [dueDate, setDueDate] = React.useState(new Date());
     const [showDatePicker, setShowDatePicker] = React.useState(false);
     const [showTimePicker, setShowTimePicker] = React.useState(false);
     const [priority, setPriority] = React.useState<Task['priority']>('medium');
-    const [userProjects, setUserProjects] = React.useState<Project[]>();
+    const [userProjects, setUserProjects] = React.useState<BasicProject[]>();
 
     React.useEffect(() => {
         async function fetchTasks() {
             try {
                 const token = await getToken();
                 if (!token) return;
-                const tasks = await ApiService.getUserProjects(token);
+                const tasks = await ApiService.getUserBasicProjects(token);
                 setUserProjects(tasks);
             } catch (error) {
                 console.error(error);
@@ -61,12 +61,10 @@ export default function CreateScreen() {
                 attachments: [],
                 comments: [],
             };
-            console.log(newTask);
             const token = await getToken();
             if (!token) return;
             const createdTask = await ApiService.createTask(token, newTask);
-
-            console.log('Creating new task:', createdTask);
+            console.log('Task created successfully:', createdTask);
             router.back();
         } catch (err) {
             console.error(JSON.stringify(err, null, 2));

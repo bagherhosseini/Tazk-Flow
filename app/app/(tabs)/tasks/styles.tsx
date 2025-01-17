@@ -135,4 +135,9 @@ export const styles = StyleSheet.create({
         marginTop: 12,
         textAlign: 'center',
     },
+    noTasksText: {
+        color: '#808080',
+        fontSize: 16,
+        textAlign: 'center',
+    },
 });

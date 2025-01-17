@@ -4,19 +4,14 @@ import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { styles } from './styles';
 import { useEffect, useState } from 'react';
-import ApiService, { Task } from '../../../services/api';
-
-interface Project {
-  id: string;
-  name?: string;
-}
+import ApiService, { Task, TasksResponse } from '../../../services/api';
 
 export default function Index() {
   const router = useRouter();
   const { user } = useUser();
   const { getToken } = useAuth();
-  const [userVisibleTasks, setUserVisibleTasks] = useState<Task[]>();
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [tasksData, setTasksData] = useState<TasksResponse>();
+  const [loading, setLoading] = useState(true);
 
   const getRandomGradient = () => {
     const gradients = [
@@ -33,23 +28,12 @@ export default function Index() {
       try {
         const token = await getToken();
         if (!token) return;
-        const tasks = await ApiService.getAllVisibleTasks(token);
-        setUserVisibleTasks(tasks);
-        const uniqueProjects = tasks
-          .filter(task => task.project)
-          .reduce((acc: { [key: string]: Project }, task) => {
-            if (task.project && !acc[task.project]) {
-              acc[task.project] = {
-                id: task.project,
-                name: task.project_name
-              };
-            }
-            return acc;
-          }, {});
-
-        setProjects(Object.values(uniqueProjects));
+        const response = await ApiService.getAllVisibleTasks(token);
+        setTasksData(response);
       } catch (error) {
-        console.error(error);
+        console.error('Error fetching tasks:', error);
+      } finally {
+        setLoading(false);
       }
     }
 
@@ -94,7 +78,7 @@ export default function Index() {
     </TouchableOpacity>
   );
 
-  if (!userVisibleTasks) {
+  if (loading) {
     return (
       <View style={styles.emptyStateContainer}>
         <MaterialCommunityIcons name="folder-outline" size={48} color="#808080" />
@@ -117,40 +101,36 @@ export default function Index() {
           <Text style={styles.sectionHeader}>Personal Tasks</Text>
         </View>
 
-        {userVisibleTasks.filter((task) => !task.project).length === 0 ? (
+        {!tasksData?.personal_tasks?.length ? (
           <View style={styles.emptyStateContainer}>
             <MaterialCommunityIcons name="clipboard-text-outline" size={48} color="#808080" />
             <Text style={styles.noTasks}>No personal tasks available</Text>
           </View>
         ) : (
-          userVisibleTasks
-            .filter((task) => !task.project)
-            .map(renderTaskCard)
+          tasksData.personal_tasks.map(renderTaskCard)
         )}
       </Pressable>
 
       {/* Project Tasks Section */}
       <Pressable style={styles.sectionContainer}>
-        {projects.length === 0 ? (
+        {!tasksData?.project_tasks?.length ? (
           <View style={styles.emptyStateContainer}>
             <MaterialCommunityIcons name="folder-outline" size={48} color="#808080" />
             <Text style={styles.noTasks}>No project tasks available</Text>
           </View>
         ) : (
-          projects.map((project) => (
+          tasksData.project_tasks.map((project) => (
             <View key={project.id} style={styles.projectContainer}>
               <View style={styles.projectHeaderContainer}>
                 <View style={[styles.projectIcon, { backgroundColor: getRandomGradient()[0] }]}>
                   <Text style={styles.projectIconText}>
-                    {project.name && project.name.charAt(0).toUpperCase()}
+                    {project.name.charAt(0).toUpperCase()}
                   </Text>
                 </View>
                 <Text style={styles.projectHeader}>{project.name}</Text>
               </View>
 
-              {userVisibleTasks
-                .filter((task) => task.project === project.id)
-                .map(renderTaskCard)}
+              {project.tasks.map(renderTaskCard)}
             </View>
           ))
         )}

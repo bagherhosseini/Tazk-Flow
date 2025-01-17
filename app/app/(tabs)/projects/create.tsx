@@ -40,6 +40,7 @@ export default function CreateProjectScreen() {
                     ? customStatuses.split(',').map(s => s.trim().toLowerCase().replace(/\s+/g, '_'))
                     : DEFAULT_TASK_STATUSES,
                 due_date: hasDueDate ? dueDate.toISOString() : undefined,
+                created_at: new Date().toISOString(),
             };
             
             const token = await getToken();

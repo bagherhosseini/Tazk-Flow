@@ -78,7 +78,7 @@ export default function ProjectsScreen() {
                     </View>
                     <View style={styles.dateInfo}>
                         <Text style={styles.dateText}>
-                            Created: {new Date(item.createdAt).toLocaleDateString()}
+                            Created: {new Date(item.created_at).toLocaleDateString()}
                         </Text>
                         {item.due_date && (
                             <Text style={styles.dateText}>
