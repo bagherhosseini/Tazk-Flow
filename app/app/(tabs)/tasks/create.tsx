@@ -109,9 +109,7 @@ export default function CreateScreen() {
 
     const onCreatePress = async () => {
         try {
-            if (!validateForm()) {
-                return;
-            }
+            if (!validateForm()) return;
 
             if (selectedProject?.due_date && dueDate > new Date(selectedProject.due_date)) {
                 Alert.alert(

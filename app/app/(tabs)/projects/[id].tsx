@@ -17,6 +17,7 @@ import ApiService, { Project, Task } from '@/services/api';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 export default function ProjectDetailScreen() {
+    const router = useRouter();
     const { id } = useLocalSearchParams();
     const projectId = Array.isArray(id) ? id[0] : id;
     const { getToken } = useAuth();
@@ -29,10 +30,39 @@ export default function ProjectDetailScreen() {
     const [inviteEmail, setInviteEmail] = React.useState('');
     const [isAddingStatus, setIsAddingStatus] = React.useState(false);
     const [newStatus, setNewStatus] = React.useState('');
-    const router = useRouter();
-
     const [selectedStatus, setSelectedStatus] = React.useState('all');
     const [sortBy, setSortBy] = React.useState('dueDate');
+    const [formErrors, setFormErrors] = React.useState<Record<string, string>>({});
+
+    const validateEditForm = () => {
+        const newErrors: Record<string, string> = {};
+
+        if (!editedProject.name?.trim()) {
+            newErrors.name = 'Project name is required';
+        }
+        if (!editedProject.description?.trim()) {
+            newErrors.description = 'Project description is required';
+        }
+        if (!editedProject.status) {
+            newErrors.status = 'Project status is required';
+        }
+
+        setFormErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+
+    const hasTaskBeenModified = () => {
+        if (!project) return false;
+
+        return (
+            editedProject.name !== project.name ||
+            editedProject.description !== project.description ||
+            editedProject.status !== project.status ||
+            editedProject.due_date !== project.due_date ||
+            JSON.stringify(editedProject.task_statuses) !== JSON.stringify(project.task_statuses) ||
+            newStatus.trim()
+        );
+    };
 
     const getPriorityColor = (priority: string) => {
         switch (priority) {
@@ -93,13 +123,20 @@ export default function ProjectDetailScreen() {
     }, [project, selectedStatus, sortBy]);
 
     const handleSave = async () => {
-        if (!project) return;
-        
         try {
+            if (!project) return;
+            
+            if (!validateEditForm()) return;
+
+            if (!hasTaskBeenModified()) {
+                setIsEditing(false);
+                return;
+            }
+
             setIsSaving(true);
             const token = await getToken();
             if (!token) return;
-
+    
             const updatedProject = await ApiService.updateProject(token, projectId, editedProject);
             setProject(updatedProject);
             setIsEditing(false);
@@ -185,34 +222,75 @@ export default function ProjectDetailScreen() {
             <View style={styles.projectInfo}>
                 {isEditing ? (
                     <View style={styles.editContainer}>
+                        <View style={styles.requiredLabel}>
+                            <Text style={styles.sectionTitle}>Project Name</Text>
+                            <Text style={styles.requiredField}>*</Text>
+                        </View>
                         <TextInput
-                            style={styles.input}
+                            style={[
+                                styles.input,
+                                formErrors.name ? styles.inputError : null
+                            ]}
                             value={editedProject.name}
-                            onChangeText={(text) => setEditedProject(prev => ({ ...prev, name: text }))}
+                            onChangeText={(text) => {
+                                setEditedProject(prev => ({ ...prev, name: text }));
+                                if (formErrors.name) {
+                                    setFormErrors(prev => ({ ...prev, name: '' }));
+                                }
+                            }}
                             placeholder="Project Name"
                             placeholderTextColor="#6B7280"
                         />
+                        {formErrors.name ? (
+                            <Text style={styles.errorText}>{formErrors.name}</Text>
+                        ) : null}
+
+                        <View style={styles.requiredLabel}>
+                            <Text style={styles.sectionTitle}>Project Description</Text>
+                            <Text style={styles.requiredField}>*</Text>
+                        </View>
                         <TextInput
-                            style={[styles.input, styles.descriptionInput]}
+                            style={[
+                                styles.input,
+                                styles.descriptionInput,
+                                formErrors.description ? styles.inputError : null
+                            ]}
                             value={editedProject.description}
-                            onChangeText={(text) => setEditedProject(prev => ({ ...prev, description: text }))}
+                            onChangeText={(text) => {
+                                setEditedProject(prev => ({ ...prev, description: text }));
+                                if (formErrors.description) {
+                                    setFormErrors(prev => ({ ...prev, description: '' }));
+                                }
+                            }}
                             placeholder="Project Description"
                             placeholderTextColor="#6B7280"
                             multiline
                         />
-                        
-                        <Text style={styles.sectionTitle}>Project Status</Text>
+                        {formErrors.description ? (
+                            <Text style={styles.errorText}>{formErrors.description}</Text>
+                        ) : null}
+
+                        <View style={styles.requiredLabel}>
+                            <Text style={styles.sectionTitle}>Project Status</Text>
+                            <Text style={styles.requiredField}>*</Text>
+                        </View>
                         <View style={styles.statusChipsContainer}>
                             {(['active', 'completed', 'on_hold'] as const).map(statusOption => (
                                 <TouchableOpacity
                                     key={statusOption}
                                     style={[
                                         styles.statusOptionChip,
-                                        editedProject.status === statusOption && styles.statusOptionSelected
+                                        editedProject.status === statusOption && styles.statusOptionSelected,
+                                        !editedProject.status && formErrors.status ? styles.statusChipError : null
                                     ]}
-                                    onPress={() => setEditedProject(prev => ({ ...prev, status: statusOption }))}
+                                    onPress={() => {
+                                        setEditedProject(prev => ({ ...prev, status: statusOption }));
+                                        if (formErrors.status) {
+                                            setFormErrors(prev => ({ ...prev, status: '' }));
+                                        }
+                                    }}
                                 >
-                                    <Text 
+                                    <Text
                                         style={[
                                             styles.statusOptionText,
                                             editedProject.status === statusOption && styles.statusOptionTextSelected
@@ -223,6 +301,9 @@ export default function ProjectDetailScreen() {
                                 </TouchableOpacity>
                             ))}
                         </View>
+                        {formErrors.status ? (
+                            <Text style={styles.errorText}>{formErrors.status}</Text>
+                        ) : null}
 
                         <Text style={styles.sectionTitle}>Due Date</Text>
                         <TouchableOpacity
@@ -296,6 +377,7 @@ export default function ProjectDetailScreen() {
                                 style={[styles.editButton, styles.cancelButton]}
                                 onPress={() => {
                                     setIsEditing(false);
+                                    setFormErrors({});
                                     setEditedProject({
                                         name: project?.name,
                                         description: project?.description,
@@ -308,9 +390,13 @@ export default function ProjectDetailScreen() {
                                 <Text style={styles.editButtonText}>Cancel</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={[styles.editButton, styles.saveButton]}
+                                style={[
+                                    styles.editButton,
+                                    styles.saveButton,
+                                    (!editedProject.name?.trim() || !editedProject.description?.trim() || !editedProject.status) && styles.disabledButton
+                                ]}
                                 onPress={handleSave}
-                                disabled={isSaving}
+                                disabled={isSaving || !editedProject.name?.trim() || !editedProject.description?.trim() || !editedProject.status}
                             >
                                 {isSaving ? (
                                     <ActivityIndicator color="#FFFFFF" size="small" />
@@ -393,7 +479,7 @@ export default function ProjectDetailScreen() {
     if (!project) {
         return (
             <SafeAreaView style={styles.container}>
-                <Text style={styles.errorText}>Project not found</Text>
+                <Text style={styles.errorTextNotFound}>Project not found</Text>
             </SafeAreaView>
         );
     }
@@ -460,7 +546,7 @@ export default function ProjectDetailScreen() {
                     showsVerticalScrollIndicator={false}
                 />
             ) : (
-                <Text style={styles.errorText}>No tasks found</Text>
+                <Text style={styles.errorTextNotFound}>No tasks found</Text>
             )}
         </SafeAreaView>
     );
@@ -612,7 +698,7 @@ const styles = StyleSheet.create({
         color: '#9CA3AF',
         fontSize: 12,
     },
-    errorText: {
+    errorTextNotFound: {
         color: '#FFFFFF',
         fontSize: 16,
         textAlign: 'center',
@@ -801,5 +887,33 @@ const styles = StyleSheet.create({
     },
     statusOptionTextSelected: {
         color: '#FFFFFF',
+    },
+    requiredLabel: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
+    requiredField: {
+        color: '#EF4444',
+        marginLeft: 4,
+        fontSize: 16,
+    },
+    inputError: {
+        borderColor: '#EF4444',
+        borderWidth: 1,
+    },
+    errorText: {
+        color: '#EF4444',
+        fontSize: 12,
+        marginTop: 4,
+        marginBottom: 8,
+    },
+    disabledButton: {
+        opacity: 0.5,
+        backgroundColor: '#666666',
+    },
+    statusChipError: {
+        borderColor: '#EF4444',
+        borderWidth: 1,
     },
 });

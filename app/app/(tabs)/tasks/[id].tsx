@@ -19,6 +19,7 @@ export default function Task() {
     const [datePickerMode, setDatePickerMode] = React.useState<'date' | 'time'>('date');
     const [selectedDate, setSelectedDate] = React.useState<Date>(new Date());
     const [visibleEmail, setVisibleEmail] = React.useState<string | null>(null);
+    const [visibleEmailMain, setVisibleEmailMain] = React.useState<boolean>(false);
     const [formErrors, setFormErrors] = React.useState<Record<string, string>>({});
 
     const validateEditForm = () => {
@@ -57,7 +58,7 @@ export default function Task() {
 
     // Function to get member display name with additional info
     const getMemberDisplayName = (member: { first_name: string; last_name: string; role: string; email: string }) => {
-        return `${member.first_name} ${member.last_name} (${member.role}) - ${member.email}`;
+        return { name: `${member.first_name} ${member.last_name} (${member.role})`, email: member.email };
     };
 
     useEffect(() => {
@@ -85,24 +86,27 @@ export default function Task() {
     }, [taskId]);
 
     const handleSave = async () => {
-        if (!validateEditForm()) {
-            return;
-        }
-
-        if (!task) return;
-
-        // Check if any changes were made
-        if (!hasTaskBeenModified()) {
-            setIsEditing(false);
-            return;
-        }
-
         try {
+            if (!validateEditForm()) return;
+            if (!task) return;
+
+            if (!hasTaskBeenModified()) {
+                setIsEditing(false);
+                return;
+            }
+
             setIsSaving(true);
             const token = await getToken();
             if (!token) return;
+
             const updatedTask = await ApiService.updateTask(token, taskId, editedTask);
-            setTask(updatedTask);
+
+            setTask({
+                ...updatedTask,
+                project: task.project,
+                assigned_to: updatedTask.assigned_to || task.assigned_to,
+            });
+
             setIsEditing(false);
         } catch (error) {
             console.error('Failed to update task:', error);
@@ -110,6 +114,32 @@ export default function Task() {
             setIsSaving(false);
         }
     };
+
+    const refreshTaskData = async () => {
+        try {
+            const token = await getToken();
+            if (!token) return;
+            const freshTask = await ApiService.getTask(token, taskId);
+            setTask(freshTask);
+            setEditedTask({
+                title: freshTask.title,
+                description: freshTask.description,
+                status: freshTask.status,
+                priority: freshTask.priority,
+                due_date: freshTask.due_date,
+                assigned_to: freshTask.assigned_to,
+            });
+            setSelectedDate(new Date(freshTask.due_date));
+        } catch (error) {
+            console.error('Failed to refresh task data:', error);
+        }
+    };
+
+    useEffect(() => {
+        if (!isEditing && task) {
+            refreshTaskData();
+        }
+    }, [isEditing]);
 
     const handleDateChange = (event: any, selectedDate?: Date) => {
         setShowDatePicker(false);
@@ -455,14 +485,34 @@ export default function Task() {
                                 <MaterialCommunityIcons name="account" size={20} color="#FFFFFF" />
                                 <Text style={styles.sectionTitle}>Assigned To</Text>
                             </View>
-                            <Text style={styles.description}>
-                                {task.assigned_to === userId
-                                    ? 'Assigned to me'
-                                    : task.project.members.find(m => m.user_id === task.assigned_to)
-                                        ? getMemberDisplayName(task.project.members.find(m => m.user_id === task.assigned_to)!)
-                                        : 'Unassigned'
-                                }
-                            </Text>
+                            {task.assigned_to === userId
+                                ? <Text style={styles.description}>Assigned to me</Text>
+                                : task.project.members.find(m => m.user_id === task.assigned_to) ? (
+                                    <View style={styles.assignedContainer}>
+                                        <View style={styles.assignedName}>
+                                            <Text style={styles.description}>
+                                                {getMemberDisplayName(task.project.members.find(m => m.user_id === task.assigned_to)!).name}
+                                            </Text>
+                                            <TouchableOpacity
+                                                style={styles.emailIcon}
+                                                onPress={() => setVisibleEmailMain(!visibleEmailMain)}
+                                            >
+
+                                                <MaterialCommunityIcons
+                                                    name="information"
+                                                    size={16}
+                                                    color="#FFFFFF"
+                                                />
+                                            </TouchableOpacity>
+                                        </View>
+                                        {visibleEmailMain && (
+                                            <View style={styles.assignedEmailTooltip}>
+                                                <Text style={styles.assignedEmailTooltipText}>{getMemberDisplayName(task.project.members.find(m => m.user_id === task.assigned_to)!).email}</Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                ) : <Text style={styles.description}>Unassigned</Text>
+                            }
                         </View>
                     )}
 
@@ -716,22 +766,49 @@ const styles = StyleSheet.create({
     },
     emailIcon: {
         padding: 8,
-        borderLeftWidth: 1,
-        borderLeftColor: '#333',
+        paddingLeft: 2,
     },
     emailTooltip: {
         position: 'absolute',
-        bottom: -40,
+        bottom: -35,
         left: 0,
         right: 0,
         backgroundColor: '#333',
         padding: 8,
         borderRadius: 8,
         zIndex: 1,
+        alignSelf: "flex-start",
+        flexShrink: 1,
+        alignItems: "flex-start",
     },
     emailTooltipText: {
         color: '#FFFFFF',
         fontSize: 12,
+        alignSelf: "flex-start",
+    },
+    assignedEmailTooltip: {
+        position: 'absolute',
+        bottom: -35,
+        left: 0,
+        right: 0,
+        alignSelf: "flex-start",
+    },    
+    assignedEmailTooltipText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        alignSelf: "flex-start",
+        backgroundColor: '#333',
+        padding: 8,
+        borderRadius: 8,
+        zIndex: 1,
+    },
+    assignedContainer: {
+        alignSelf: "flex-start",
+    },
+    assignedName: {
+        flexDirection: 'row',
+        gap: 4,
+        alignItems: 'center',
     },
     requiredLabel: {
         flexDirection: 'row' as const,
