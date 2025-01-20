@@ -94,6 +94,17 @@ export interface TasksResponse {
     project_tasks: Project[];
 }
 
+export interface Invite {
+    email: string;
+    project_id: string;
+    role: 'member' | 'admin' | 'owner';
+}
+
+export interface ResponseInvite {
+    invite_id: string;
+    response: 'accepted' | 'declined';
+}
+
 const API_URL = 'http://192.168.0.11:8000';
 
 class ApiService {
@@ -217,62 +228,33 @@ class ApiService {
         return await response.json();
     }
 
-    // static async updateTask(token: string, taskId: string, updates: Partial<Task>): Promise<Task> {
-    //     const headers = this.getHeaders(token);
-    //     const response = await fetch(`${API_URL}/tasks/${taskId}/`, {
-    //         method: 'PATCH',
-    //         headers,
-    //         body: JSON.stringify(updates),
-    //     });
-    //     return await response.json();
-    // }
+    static async invite(token: string, userInfo: Invite): Promise<Invite> {
+        const headers = this.getHeaders(token);
+        const response = await fetch(`${API_URL}/invites/invite_user/`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(userInfo),
+        });
+        return await response.json();
+    }
 
-    // // Teams
-    // static async getUserTeams(token: string): Promise<Team[]> {
-    //     const headers = this.getHeaders(token);
-    //     const response = await fetch(`${API_URL}/teams/`, {
-    //         headers,
-    //     });
-    //     return await response.json();
-    // }
+    static async getInvites(token: string): Promise<any> {
+        const headers = this.getHeaders(token);
+        const response = await fetch(`${API_URL}/invites/pending_invites/`, {
+            headers,
+        });
+        return await response.json();
+    }
 
-    // static async createTeam(token: string, team: Omit<Team, 'id'>): Promise<Team> {
-    //     const headers = this.getHeaders(token);
-    //     const response = await fetch(`${API_URL}/teams/`, {
-    //         method: 'POST',
-    //         headers,
-    //         body: JSON.stringify(team),
-    //     });
-    //     return await response.json();
-    // }
-
-    // // Comments
-    // static async getTaskComments(token: string, taskId: string): Promise<Comment[]> {
-    //     const headers = this.getHeaders(token);
-    //     const response = await fetch(`${API_URL}/comments/?task=${taskId}`, {
-    //         headers,
-    //     });
-    //     return await response.json();
-    // }
-
-    // static async createComment(token: string, comment: Omit<Comment, 'id' | 'createdAt' | 'createdBy'>): Promise<Comment> {
-    //     const headers = this.getHeaders(token);
-    //     const response = await fetch(`${API_URL}/comments/`, {
-    //         method: 'POST',
-    //         headers,
-    //         body: JSON.stringify(comment),
-    //     });
-    //     return await response.json();
-    // }
-
-    // // Error handling helper
-    // static async handleResponse(response: Response) {
-    //     if (!response.ok) {
-    //         const error = await response.json();
-    //         throw new Error(error.message || 'An error occurred');
-    //     }
-    //     return response.json();
-    // }
+    static async responseInvite(token: string, InviteResponse: ResponseInvite): Promise<any> {
+        const headers = this.getHeaders(token);
+        const response = await fetch(`${API_URL}/invites/respond_to_invite/`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(InviteResponse),
+        });
+        return await response.json();
+    }
 }
 
 export default ApiService;

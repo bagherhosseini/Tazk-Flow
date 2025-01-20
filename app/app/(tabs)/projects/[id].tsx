@@ -33,6 +33,7 @@ export default function ProjectDetailScreen() {
     const [selectedStatus, setSelectedStatus] = React.useState('all');
     const [sortBy, setSortBy] = React.useState('dueDate');
     const [formErrors, setFormErrors] = React.useState<Record<string, string>>({});
+    const [selectedRole, setSelectedRole] = React.useState<'member' | 'admin' | 'owner'>('member');
 
     const validateEditForm = () => {
         const newErrors: Record<string, string> = {};
@@ -175,6 +176,30 @@ export default function ProjectDetailScreen() {
         }
     };
 
+    const handleInvite = async () => {
+        try {
+            const token = await getToken();
+            if (!token) return;
+
+            const userInfo = {
+                email: inviteEmail,
+                project_id: projectId,
+                role: selectedRole,
+            };
+
+            const createdTask = await ApiService.invite(token, userInfo);
+            console.log('Invite sent:', createdTask);
+
+            setShowInviteModal(false);
+            setInviteEmail('');
+            setSelectedRole('member');
+        } catch (error) {
+            console.error('Failed to invite user:', error);
+        }
+    }
+
+    const roles: Array<'member' | 'admin' | 'owner'> = ['member', 'admin', 'owner'];
+
     const renderInviteModal = () => (
         <Modal
             visible={showInviteModal}
@@ -194,6 +219,22 @@ export default function ProjectDetailScreen() {
                         keyboardType="email-address"
                         autoCapitalize="none"
                     />
+                    <View style={styles.roleChipContainer}>
+                        {roles.map(role => (
+                            <TouchableOpacity
+                                key={role}
+                                style={[
+                                    styles.roleChip,
+                                    selectedRole === role && styles.filterChipSelected
+                                ]}
+                                onPress={() => setSelectedRole(role)}
+                            >
+                                <Text style={styles.roleChipText}>
+                                    {role}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
                     <View style={styles.modalActions}>
                         <TouchableOpacity
                             style={[styles.editButton, styles.cancelButton]}
@@ -203,11 +244,7 @@ export default function ProjectDetailScreen() {
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={[styles.editButton, styles.saveButton]}
-                            onPress={() => {
-                                // Placeholder for invite functionality
-                                setShowInviteModal(false);
-                                setInviteEmail('');
-                            }}
+                            onPress={()=> handleInvite()}
                         >
                             <Text style={styles.editButtonText}>Send Invite</Text>
                         </TouchableOpacity>
@@ -365,13 +402,6 @@ export default function ProjectDetailScreen() {
                             )}
                         </View>
 
-                        <TouchableOpacity
-                            style={styles.inviteButton}
-                            onPress={() => setShowInviteModal(true)}
-                        >
-                            <Text style={styles.inviteButtonText}>+ Invite People</Text>
-                        </TouchableOpacity>
-
                         <View style={styles.editActions}>
                             <TouchableOpacity
                                 style={[styles.editButton, styles.cancelButton]}
@@ -489,6 +519,13 @@ export default function ProjectDetailScreen() {
             {renderProjectHeader()}
             {renderInviteModal()}
 
+            <TouchableOpacity
+                style={styles.inviteButton}
+                onPress={() => setShowInviteModal(true)}
+            >
+                <Text style={styles.inviteButtonText}>+ Invite People</Text>
+            </TouchableOpacity>
+
             <View style={styles.filters}>
                 <ScrollView
                     horizontal
@@ -556,6 +593,7 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#121212',
+        gap: 16,
     },
     header: {
         padding: 24,
@@ -588,6 +626,22 @@ const styles = StyleSheet.create({
     },
     statusFilter: {
         marginBottom: 16,
+    },
+    roleChipContainer: {
+        flexDirection: 'row',
+        gap: 4,
+        marginBottom: 10,
+    },
+    roleChip: {
+        backgroundColor: '#374151',
+        paddingHorizontal: 16,
+        paddingVertical: 6,
+        borderRadius: 20,
+    },
+    roleChipText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        textTransform: 'capitalize',
     },
     filterChip: {
         backgroundColor: '#374151',
@@ -812,11 +866,12 @@ const styles = StyleSheet.create({
         fontSize: 14,
     },
     inviteButton: {
-        backgroundColor: '#374151',
+        // backgroundColor: '#374151',
+        backgroundColor: '#2563EB',
         borderRadius: 8,
         paddingVertical: 12,
         paddingHorizontal: 16,
-        marginTop: 16,
+        marginHorizontal: 16,
         alignItems: 'center',
     },
     inviteButtonText: {

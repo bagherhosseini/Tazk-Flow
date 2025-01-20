@@ -130,6 +130,7 @@ export default function RootLayout() {
     { label: 'Personal', icon: 'folder-account', route: '/tasks/personalTasks' },
     { label: 'Project', icon: 'folder', route: '/tasks/projectsTasks' },
     { label: 'Projects', icon: 'layers', route: '/projects/projects' },
+    { label: 'Invites', icon: 'archive-plus', route: '/invite' },
     { label: 'Profile', icon: 'account', route: '/profile' },
   ];
 
@@ -148,7 +149,6 @@ export default function RootLayout() {
       <Stack
         screenOptions={{
           header: () => <CustomHeader onMenuPress={toggleDrawer} onAddPress={addTask} onBackPress={goBack} isBackButtonShown={isBackButtonShown} />,
-          // headerShown: isHeaderShown,
         }}
       />
 
