@@ -1,16 +1,3 @@
-// Types
-// export type Project = {
-//     id: string;
-//     name: string;
-//     description: string;
-//     status: 'active' | 'completed' | 'on_hold';
-//     teamId?: string;
-//     task_statuses: string[];
-//     created_at: string;
-//     due_date?: string;
-//     tasks?: Task[];
-// };
-
 export interface Project {
     id: string;
     name: string;
@@ -21,7 +8,17 @@ export interface Project {
     created_at: string;
     due_date?: string;
     tasks: Task[];
+    members?: User[];
 }
+
+export interface User {
+    email: string;
+    first_name: string;
+    image_url: string;
+    last_name: string;
+    role: string;
+    user_id: string;
+};
 
 export interface BasicProject {
     id: string;
@@ -32,6 +29,7 @@ export interface BasicProject {
     task_statuses: string[];
     created_at: string;
     due_date?: string;
+    members?: User[];
 }
 
 export interface CreateProject {
@@ -200,6 +198,16 @@ class ApiService {
 
     // updateTask
     static async updateTask(token: string, taskId: string, updates: Partial<Task>): Promise<Task> {
+        const headers = this.getHeaders(token);
+        const response = await fetch(`${API_URL}/tasks/${taskId}/`, {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify(updates),
+        });
+        return await response.json();
+    }
+
+    static async getMembers(token: string, taskId: string, updates: Partial<Task>): Promise<Task> {
         const headers = this.getHeaders(token);
         const response = await fetch(`${API_URL}/tasks/${taskId}/`, {
             method: 'PATCH',

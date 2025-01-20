@@ -10,16 +10,17 @@ import {
     SafeAreaView,
     ScrollView,
     Switch,
+    Alert,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { projects, Task } from '../../../data/data';
-import { BasicProject } from '@/services/api';
+import { BasicProject, Task } from '@/services/api';
 import { useAuth } from '@clerk/clerk-expo';
 import ApiService from '@/services/api';
 
 export default function CreateScreen() {
-    const { getToken } = useAuth();
+    const { getToken, userId } = useAuth();
     const router = useRouter();
     const [title, setTitle] = React.useState('');
     const [description, setDescription] = React.useState('');
@@ -31,6 +32,9 @@ export default function CreateScreen() {
     const [showTimePicker, setShowTimePicker] = React.useState(false);
     const [priority, setPriority] = React.useState<Task['priority']>('medium');
     const [userProjects, setUserProjects] = React.useState<BasicProject[]>();
+    const [status, setStatus] = React.useState('todo');
+    const [assignedTo, setAssignedTo] = React.useState<string>('');
+    const [visibleEmail, setVisibleEmail] = React.useState<string | null>(null);
 
     React.useEffect(() => {
         async function fetchTasks() {
@@ -47,16 +51,64 @@ export default function CreateScreen() {
         fetchTasks();
     }, []);
 
+    const handleProjectSelect = (project: BasicProject) => {
+        setSelectedProject(project);
+        if (project.task_statuses?.length > 0) {
+            setStatus(project.task_statuses[0]);
+        }
+        if (project.due_date) {
+            const projectDueDate = new Date(project.due_date);
+            if (dueDate > projectDueDate) {
+                setDueDate(projectDueDate);
+                Alert.alert(
+                    "Due Date Adjusted",
+                    "Task due date has been set to match project due date.",
+                    [{ text: "OK" }]
+                );
+            }
+        }
+    };
+
+    const handleDateChange = (event: any, selectedDate?: Date) => {
+        const currentDate = selectedDate || dueDate;
+
+        if (selectedProject?.due_date) {
+            const projectDueDate = new Date(selectedProject.due_date);
+            if (currentDate > projectDueDate) {
+                Alert.alert(
+                    "Invalid Date",
+                    "Task due date cannot be later than project due date.",
+                    [{ text: "OK" }]
+                );
+                return;
+            }
+        }
+
+        setDueDate(currentDate);
+        setShowDatePicker(false);
+        setShowTimePicker(false);
+    };
+
     const onCreatePress = async () => {
         try {
+            if (selectedProject?.due_date && dueDate > new Date(selectedProject.due_date)) {
+                Alert.alert(
+                    "Invalid Due Date",
+                    "Task due date cannot be later than project due date.",
+                    [{ text: "OK" }]
+                );
+                return;
+            }
+
             const newTask = {
                 title,
                 description,
-                status: isProjectTask ? undefined : 'Todo',
+                status: isProjectTask ? status : 'Todo',
                 priority,
                 due_date: dueDate.toISOString(),
                 created_at: new Date().toISOString(),
                 project: isProjectTask && selectedProject ? selectedProject.id : undefined,
+                assigned_to: isProjectTask ? assignedTo : undefined,
                 tags: [],
                 attachments: [],
                 comments: [],
@@ -64,11 +116,101 @@ export default function CreateScreen() {
             const token = await getToken();
             if (!token) return;
             const createdTask = await ApiService.createTask(token, newTask);
-            console.log('Task created successfully:', createdTask);
             router.back();
         } catch (err) {
             console.error(JSON.stringify(err, null, 2));
         }
+    };
+
+    const PriorityButton = ({ value, label, color }: { value: Task['priority'], label: string, color: string }) => (
+        <TouchableOpacity
+            style={[
+                styles.priorityButton,
+                { backgroundColor: priority === value ? color : 'transparent' },
+                { borderColor: color }
+            ]}
+            onPress={() => setPriority(value)}
+        >
+            <Text style={[
+                styles.priorityButtonText,
+                { color: priority === value ? '#FFFFFF' : color }
+            ]}>
+                {label}
+            </Text>
+        </TouchableOpacity>
+    );
+
+    const StatusButton = ({ value }: { value: string }) => (
+        <TouchableOpacity
+            style={[
+                styles.statusButton,
+                status === value && styles.statusButtonSelected
+            ]}
+            onPress={() => setStatus(value)}
+        >
+            <Text style={[
+                styles.statusButtonText,
+                status === value && styles.statusButtonTextSelected
+            ]}>
+                {value.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+            </Text>
+        </TouchableOpacity>
+    );
+
+    const MemberSelector = ({ members }: { members: Array<{ first_name: string; last_name: string; user_id: string; image_url: string; role: string; email: string }> }) => {
+        return (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.memberChips}>
+                    <TouchableOpacity
+                        style={[
+                            styles.memberChip,
+                            assignedTo === userId && styles.memberChipSelected,
+                        ]}
+                        onPress={() => setAssignedTo(userId ?? '')}
+                    >
+                        <Text style={styles.memberChipText}>
+                            Assign to me
+                        </Text>
+                    </TouchableOpacity>
+                    {members
+                        .filter(member => member.user_id !== userId)
+                        .map((member) => (
+                            <TouchableOpacity
+                                key={member.user_id}
+                                style={[
+                                    styles.memberChipContainer,
+                                    assignedTo === member.user_id && styles.memberChipSelected,
+                                ]}
+                            >
+                                <TouchableOpacity
+                                    style={styles.memberMainChip}
+                                    onPress={() => setAssignedTo(member.user_id)}
+                                >
+                                    <Text style={styles.memberChipText}>
+                                        {`${member.first_name} ${member.last_name} (${member.role})`}
+                                    </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.emailIcon}
+                                    onPress={() => setVisibleEmail(visibleEmail === member.user_id ? null : member.user_id)}
+                                >
+                                    <MaterialCommunityIcons
+                                        name="information"
+                                        size={16}
+                                        color="#FFFFFF"
+                                    />
+                                </TouchableOpacity>
+                                {visibleEmail === member.user_id && (
+                                    <View style={styles.emailTooltip}>
+                                        <Text style={styles.emailTooltipText}>{member.email}</Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+                        ))
+                    }
+                </View>
+            </ScrollView>
+        );
     };
 
     return (
@@ -99,6 +241,43 @@ export default function CreateScreen() {
                             numberOfLines={4}
                             textAlignVertical="top"
                         />
+
+                        <View style={styles.prioritySection}>
+                            <Text style={styles.sectionTitle}>Priority</Text>
+                            <View style={styles.priorityButtons}>
+                                <PriorityButton value="low" label="Low" color="#22C55E" />
+                                <PriorityButton value="medium" label="Medium" color="#F59E0B" />
+                                <PriorityButton value="high" label="High" color="#EF4444" />
+                            </View>
+                        </View>
+
+                        <TouchableOpacity
+                            style={styles.dateInput}
+                            onPress={() => setShowDatePicker(true)}
+                        >
+                            <Text style={styles.dateInputText}>
+                                {dueDate.toLocaleDateString()}
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={styles.dateInput}
+                            onPress={() => setShowTimePicker(true)}
+                        >
+                            <Text style={styles.dateInputText}>
+                                {dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </Text>
+                        </TouchableOpacity>
+
+                        {(showDatePicker || showTimePicker) && (
+                            <DateTimePicker
+                                value={dueDate}
+                                mode={showDatePicker ? 'date' : 'time'}
+                                is24Hour={true}
+                                onChange={handleDateChange}
+                                maximumDate={selectedProject?.due_date ? new Date(selectedProject.due_date) : undefined}
+                            />
+                        )}
 
                         <View style={styles.switchContainer}>
                             <Text style={styles.switchLabel}>Project Task</Text>
@@ -131,7 +310,7 @@ export default function CreateScreen() {
                                                     styles.projectChip,
                                                     selectedProject?.id === project.id && styles.projectChipSelected,
                                                 ]}
-                                                onPress={() => setSelectedProject(project)}
+                                                onPress={() => handleProjectSelect(project)}
                                             >
                                                 <Text style={styles.projectChipText}>{project.name}</Text>
                                             </TouchableOpacity>
@@ -139,40 +318,27 @@ export default function CreateScreen() {
                                         : <Text>No project</Text>
                                     }
                                 </ScrollView>
+
+                                {selectedProject && selectedProject.task_statuses && (
+                                    <View style={styles.statusSection}>
+                                        <Text style={styles.sectionTitle}>Status</Text>
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                            <View style={styles.statusButtons}>
+                                                {selectedProject.task_statuses.map((statusValue) => (
+                                                    <StatusButton key={statusValue} value={statusValue} />
+                                                ))}
+                                            </View>
+                                        </ScrollView>
+
+                                        {isProjectTask && selectedProject?.members && (
+                                            <View style={styles.memberSection}>
+                                                <Text style={styles.sectionTitle}>Assign To</Text>
+                                                <MemberSelector members={selectedProject.members} />
+                                            </View>
+                                        )}
+                                    </View>
+                                )}
                             </View>
-                        )}
-
-                        <TouchableOpacity
-                            style={styles.dateInput}
-                            onPress={() => setShowDatePicker(true)}
-                        >
-                            <Text style={styles.dateInputText}>
-                                {dueDate.toLocaleDateString()}
-                            </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={styles.dateInput}
-                            onPress={() => setShowTimePicker(true)}
-                        >
-                            <Text style={styles.dateInputText}>
-                                {dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </Text>
-                        </TouchableOpacity>
-
-                        {(showDatePicker || showTimePicker) && (
-                            <DateTimePicker
-                                value={dueDate}
-                                mode={showDatePicker ? 'date' : 'time'}
-                                is24Hour={true}
-                                onChange={(event, selectedDate) => {
-                                    if (selectedDate) {
-                                        setDueDate(selectedDate);
-                                    }
-                                    setShowDatePicker(false);
-                                    setShowTimePicker(false);
-                                }}
-                            />
                         )}
 
                         <TouchableOpacity onPress={onCreatePress} style={styles.button}>
@@ -192,7 +358,9 @@ const styles = StyleSheet.create({
     },
     content: {
         flex: 1,
-        padding: 24,
+        // padding: 24,
+        paddingHorizontal: 24,
+        marginVertical: 24,
     },
     title: {
         fontSize: 32,
@@ -218,7 +386,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 8,
     },
     switchLabel: {
         color: '#FFFFFF',
@@ -285,5 +452,105 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 16,
         fontWeight: '600',
+    },
+    priorityButtons: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    priorityButton: {
+        flex: 1,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 8,
+        borderWidth: 1,
+        alignItems: 'center',
+    },
+    priorityButtonText: {
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    prioritySection: {
+        gap: 8,
+    },
+    statusSection: {
+        marginTop: 16,
+        gap: 8,
+    },
+    statusButtons: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    statusButtonText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+    },
+    statusButtonTextSelected: {
+        fontWeight: '500',
+    },
+    statusButton: {
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 16,
+        backgroundColor: '#1A1A1A',
+        marginRight: 8,
+    },
+    statusButtonSelected: {
+        backgroundColor: '#2563EB',
+    },
+    memberSection: {
+        marginTop: 16,
+        gap: 8,
+    },
+    memberChips: {
+        flexDirection: 'row',
+        gap: 10,
+        paddingBottom: 35,
+    },
+    memberChip: {
+        backgroundColor: '#1E1E1E',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 16,
+    },
+    memberChipSelected: {
+        backgroundColor: '#2563EB',
+    },
+    memberChipText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+    },
+    memberChipContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        paddingRight: 10,
+        paddingVertical: 1.2,
+        overflow: 'visible',
+        backgroundColor: '#1E1E1E',
+    },
+    memberMainChip: {
+        paddingRight: 8,
+    },
+    emailIcon: {
+        paddingLeft: 8,
+        paddingVertical: 8,
+        borderLeftWidth: 1,
+        borderLeftColor: '#333',
+    },
+    emailTooltip: {
+        position: 'absolute',
+        bottom: -35,
+        left: 0,
+        right: 0,
+        backgroundColor: '#333',
+        padding: 8,
+        borderRadius: 8,
+        zIndex: 1,
+        alignItems: 'center',
+    },
+    emailTooltipText: {
+        color: '#FFFFFF',
+        fontSize: 12,
     },
 });

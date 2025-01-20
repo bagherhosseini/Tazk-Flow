@@ -6,11 +6,12 @@ import { format } from 'date-fns';
 import { useAuth } from '@clerk/clerk-expo';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import ApiService, { Task as TaskType } from '@/services/api';
+import { red } from 'react-native-reanimated/lib/typescript/Colors';
 
 export default function Task() {
     const { id } = useLocalSearchParams();
     const taskId = Array.isArray(id) ? id[0] : id;
-    const { getToken } = useAuth();
+    const { getToken, userId } = useAuth();
     const [task, setTask] = React.useState<TaskType>();
     const [isEditing, setIsEditing] = React.useState(false);
     const [isSaving, setIsSaving] = React.useState(false);
@@ -18,6 +19,26 @@ export default function Task() {
     const [showDatePicker, setShowDatePicker] = React.useState(false);
     const [datePickerMode, setDatePickerMode] = React.useState<'date' | 'time'>('date');
     const [selectedDate, setSelectedDate] = React.useState<Date>(new Date());
+    const [visibleEmail, setVisibleEmail] = React.useState<string | null>(null);
+
+    // Function to check if task has been modified
+    const hasTaskBeenModified = () => {
+        if (!task) return false;
+
+        return (
+            editedTask.title !== task.title ||
+            editedTask.description !== task.description ||
+            editedTask.status !== task.status ||
+            editedTask.priority !== task.priority ||
+            editedTask.due_date !== task.due_date ||
+            editedTask.assigned_to !== task.assigned_to
+        );
+    };
+
+    // Function to get member display name with additional info
+    const getMemberDisplayName = (member: { first_name: string; last_name: string; role: string; email: string }) => {
+        return `${member.first_name} ${member.last_name} (${member.role}) - ${member.email}`;
+    };
 
     useEffect(() => {
         async function fetchData() {
@@ -45,6 +66,13 @@ export default function Task() {
 
     const handleSave = async () => {
         if (!task) return;
+
+        // Check if any changes were made
+        if (!hasTaskBeenModified()) {
+            setIsEditing(false);
+            return;
+        }
+
         try {
             setIsSaving(true);
             const token = await getToken();
@@ -172,16 +200,67 @@ export default function Task() {
                 </Text>
             </TouchableOpacity>
 
-            {task?.project && (
+            {task?.project?.members && (
                 <>
                     <Text style={styles.sectionTitle}>Assigned To</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={editedTask.assigned_to}
-                        onChangeText={(text) => setEditedTask(prev => ({ ...prev, assigned_to: text }))}
-                        placeholder="User ID"
-                        placeholderTextColor="#6B7280"
-                    />
+                    <View style={styles.chipContainer}>
+                        <TouchableOpacity
+                            style={[
+                                styles.chip,
+                                editedTask.assigned_to === userId && styles.chipSelected
+                            ]}
+                            onPress={() => setEditedTask(prev => ({
+                                ...prev,
+                                assigned_to: userId || undefined
+                            }))}
+                        >
+                            <Text style={[
+                                styles.chipText,
+                                editedTask.assigned_to === userId && styles.chipTextSelected
+                            ]}>
+                                Assign to me
+                            </Text>
+                        </TouchableOpacity>
+                        {task.project.members
+                            .filter(member => member.user_id !== userId)
+                            .map((member) => (
+                                <TouchableOpacity
+                                    key={member.user_id}
+                                    style={[
+                                        styles.memberChipContainer,
+                                        editedTask.assigned_to === member.user_id && styles.chipSelected
+                                    ]}
+                                >
+                                    <TouchableOpacity
+                                        style={styles.memberMainChip}
+                                        onPress={() => setEditedTask(prev => ({ ...prev, assigned_to: member.user_id }))}
+                                    >
+                                        <Text style={[
+                                            styles.chipText,
+                                            editedTask.assigned_to === member.user_id && styles.chipTextSelected
+                                        ]}>
+                                            {`${member.first_name} ${member.last_name} (${member.role})`}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={styles.emailIcon}
+                                        onPress={() => setVisibleEmail(visibleEmail === member.user_id ? null : member.user_id)}
+                                    >
+                                        <MaterialCommunityIcons
+                                            name="information"
+                                            size={16}
+                                            color="#FFFFFF"
+                                        />
+                                    </TouchableOpacity>
+                                    {visibleEmail === member.user_id && (
+                                        <View style={styles.emailTooltip}>
+                                            <Text style={styles.emailTooltipText}>{member.email}</Text>
+                                        </View>
+                                    )}
+                                </TouchableOpacity>
+                            ))
+                        }
+                    </View>
                 </>
             )}
 
@@ -307,6 +386,23 @@ export default function Task() {
                                     </View>
                                 ))}
                             </View>
+                        </View>
+                    )}
+
+                    {task.project?.members && (
+                        <View style={styles.section}>
+                            <View style={styles.sectionHeader}>
+                                <MaterialCommunityIcons name="account" size={20} color="#FFFFFF" />
+                                <Text style={styles.sectionTitle}>Assigned To</Text>
+                            </View>
+                            <Text style={styles.description}>
+                                {task.assigned_to === userId
+                                    ? 'Assigned to me'
+                                    : task.project.members.find(m => m.user_id === task.assigned_to)
+                                        ? getMemberDisplayName(task.project.members.find(m => m.user_id === task.assigned_to)!)
+                                        : 'Unassigned'
+                                }
+                            </Text>
                         </View>
                     )}
 
@@ -542,5 +638,39 @@ const styles = StyleSheet.create({
     },
     dateText: {
         color: '#FFFFFF',
+    },
+    memberChipContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: 16,
+        marginRight: 8,
+        overflow: 'visible',
+        backgroundColor: '#2D2D2D',
+        borderWidth: 1,
+        borderColor: '#374151',
+    },
+    memberMainChip: {
+        paddingVertical: 6,
+        paddingLeft: 12,
+        paddingRight: 4,
+    },
+    emailIcon: {
+        padding: 8,
+        borderLeftWidth: 1,
+        borderLeftColor: '#333',
+    },
+    emailTooltip: {
+        position: 'absolute',
+        bottom: -40,
+        left: 0,
+        right: 0,
+        backgroundColor: '#333',
+        padding: 8,
+        borderRadius: 8,
+        zIndex: 1,
+    },
+    emailTooltipText: {
+        color: '#FFFFFF',
+        fontSize: 12,
     },
 });
