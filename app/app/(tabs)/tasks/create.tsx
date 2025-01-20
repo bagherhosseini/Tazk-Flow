@@ -35,6 +35,24 @@ export default function CreateScreen() {
     const [status, setStatus] = React.useState('todo');
     const [assignedTo, setAssignedTo] = React.useState<string>('');
     const [visibleEmail, setVisibleEmail] = React.useState<string | null>(null);
+    const [errors, setErrors] = React.useState<Record<string, string>>({});
+    
+    const validateForm = () => {
+        const newErrors: Record<string, string> = {};
+        
+        if (!title.trim()) {
+            newErrors.title = 'Title is required';
+        }
+        if (!description.trim()) {
+            newErrors.description = 'Description is required';
+        }
+        if (isProjectTask && !selectedProject) {
+            newErrors.project = 'Project selection is required';
+        }
+        
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
 
     React.useEffect(() => {
         async function fetchTasks() {
@@ -91,6 +109,10 @@ export default function CreateScreen() {
 
     const onCreatePress = async () => {
         try {
+            if (!validateForm()) {
+                return;
+            }
+
             if (selectedProject?.due_date && dueDate > new Date(selectedProject.due_date)) {
                 Alert.alert(
                     "Invalid Due Date",
@@ -223,24 +245,55 @@ export default function CreateScreen() {
                     <Text style={styles.title}>Create New Task</Text>
 
                     <View style={styles.formContainer}>
+                        <View style={styles.requiredLabel}>
+                            <Text style={styles.sectionTitle}>Title</Text>
+                            <Text style={styles.requiredField}>*</Text>
+                        </View>
                         <TextInput
                             value={title}
-                            onChangeText={setTitle}
+                            onChangeText={(text) => {
+                                setTitle(text);
+                                if (errors.title) {
+                                    setErrors(prev => ({ ...prev, title: '' }));
+                                }
+                            }}
                             placeholder="Title"
                             placeholderTextColor="#666"
-                            style={styles.input}
+                            style={[
+                                styles.input,
+                                errors.title ? styles.inputError : null
+                            ]}
                         />
+                        {errors.title ? (
+                            <Text style={styles.errorText}>{errors.title}</Text>
+                        ) : null}
 
+                        <View style={styles.requiredLabel}>
+                            <Text style={styles.sectionTitle}>Description</Text>
+                            <Text style={styles.requiredField}>*</Text>
+                        </View>
                         <TextInput
                             value={description}
-                            onChangeText={setDescription}
+                            onChangeText={(text) => {
+                                setDescription(text);
+                                if (errors.description) {
+                                    setErrors(prev => ({ ...prev, description: '' }));
+                                }
+                            }}
                             placeholder="Description"
                             placeholderTextColor="#666"
-                            style={[styles.input, styles.textArea]}
+                            style={[
+                                styles.input,
+                                styles.textArea,
+                                errors.description ? styles.inputError : null
+                            ]}
                             multiline
                             numberOfLines={4}
                             textAlignVertical="top"
                         />
+                        {errors.description ? (
+                            <Text style={styles.errorText}>{errors.description}</Text>
+                        ) : null}
 
                         <View style={styles.prioritySection}>
                             <Text style={styles.sectionTitle}>Priority</Text>
@@ -341,7 +394,14 @@ export default function CreateScreen() {
                             </View>
                         )}
 
-                        <TouchableOpacity onPress={onCreatePress} style={styles.button}>
+                        <TouchableOpacity
+                            onPress={onCreatePress}
+                            style={[
+                                styles.button,
+                                (!title.trim() || !description.trim()) && styles.disabledButton
+                            ]}
+                            disabled={!title.trim() || !description.trim()}
+                        >
                             <Text style={styles.buttonText}>Create Task</Text>
                         </TouchableOpacity>
                     </View>
@@ -553,4 +613,25 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 12,
     },
+    requiredLabel: {
+        flexDirection: 'row' as const,
+        alignItems: 'center' as const,
+        gap: 4,
+    },
+    requiredField: {
+        color: '#FF4444',
+        fontSize: 14,
+    },
+    inputError: {
+        borderWidth: 1,
+        borderColor: '#FF4444',
+    },
+    errorText: {
+        color: '#FF4444',
+        fontSize: 12,
+        marginTop: 4,
+    },
+    disabledButton: {
+        opacity: 0.5,
+    }
 });

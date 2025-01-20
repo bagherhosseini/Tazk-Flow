@@ -6,7 +6,6 @@ import { format } from 'date-fns';
 import { useAuth } from '@clerk/clerk-expo';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import ApiService, { Task as TaskType } from '@/services/api';
-import { red } from 'react-native-reanimated/lib/typescript/Colors';
 
 export default function Task() {
     const { id } = useLocalSearchParams();
@@ -20,6 +19,27 @@ export default function Task() {
     const [datePickerMode, setDatePickerMode] = React.useState<'date' | 'time'>('date');
     const [selectedDate, setSelectedDate] = React.useState<Date>(new Date());
     const [visibleEmail, setVisibleEmail] = React.useState<string | null>(null);
+    const [formErrors, setFormErrors] = React.useState<Record<string, string>>({});
+
+    const validateEditForm = () => {
+        const newErrors: Record<string, string> = {};
+
+        if (!editedTask.title?.trim()) {
+            newErrors.title = 'Title is required';
+        }
+        if (!editedTask.description?.trim()) {
+            newErrors.description = 'Description is required';
+        }
+        if (!editedTask.status) {
+            newErrors.status = 'Status is required';
+        }
+        if (!editedTask.priority) {
+            newErrors.priority = 'Priority is required';
+        }
+
+        setFormErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
 
     // Function to check if task has been modified
     const hasTaskBeenModified = () => {
@@ -65,6 +85,10 @@ export default function Task() {
     }, [taskId]);
 
     const handleSave = async () => {
+        if (!validateEditForm()) {
+            return;
+        }
+
         if (!task) return;
 
         // Check if any changes were made
@@ -125,22 +149,53 @@ export default function Task() {
 
     const renderEditableContent = () => (
         <View style={styles.editContainer}>
+            <View style={styles.requiredLabel}>
+                <Text style={styles.sectionTitle}>Title</Text>
+                <Text style={styles.requiredField}>*</Text>
+            </View>
             <TextInput
-                style={styles.input}
+                style={[
+                    styles.input,
+                    formErrors.title ? styles.inputError : null
+                ]}
                 value={editedTask.title}
-                onChangeText={(text) => setEditedTask(prev => ({ ...prev, title: text }))}
+                onChangeText={(text) => {
+                    setEditedTask(prev => ({ ...prev, title: text }));
+                    if (formErrors.title) {
+                        setFormErrors(prev => ({ ...prev, title: '' }));
+                    }
+                }}
                 placeholder="Task Title"
                 placeholderTextColor="#6B7280"
             />
+            {formErrors.title ? (
+                <Text style={styles.errorText}>{formErrors.title}</Text>
+            ) : null}
 
+            <View style={styles.requiredLabel}>
+                <Text style={styles.sectionTitle}>Description</Text>
+                <Text style={styles.requiredField}>*</Text>
+            </View>
             <TextInput
-                style={[styles.input, styles.descriptionInput]}
+                style={[
+                    styles.input,
+                    styles.descriptionInput,
+                    formErrors.description ? styles.inputError : null
+                ]}
                 value={editedTask.description}
-                onChangeText={(text) => setEditedTask(prev => ({ ...prev, description: text }))}
+                onChangeText={(text) => {
+                    setEditedTask(prev => ({ ...prev, description: text }));
+                    if (formErrors.description) {
+                        setFormErrors(prev => ({ ...prev, description: '' }));
+                    }
+                }}
                 placeholder="Description"
                 placeholderTextColor="#6B7280"
                 multiline
             />
+            {formErrors.description ? (
+                <Text style={styles.errorText}>{formErrors.description}</Text>
+            ) : null}
 
             <Text style={styles.sectionTitle}>Status</Text>
             <View style={styles.chipContainer}>
@@ -269,6 +324,7 @@ export default function Task() {
                     style={[styles.editButton, styles.cancelButton]}
                     onPress={() => {
                         setIsEditing(false);
+                        setFormErrors({});
                         setEditedTask({
                             title: task?.title,
                             description: task?.description,
@@ -282,9 +338,13 @@ export default function Task() {
                     <Text style={styles.editButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                    style={[styles.editButton, styles.saveButton]}
+                    style={[
+                        styles.editButton,
+                        styles.saveButton,
+                        (!editedTask.title?.trim() || !editedTask.description?.trim()) && styles.disabledButton
+                    ]}
                     onPress={handleSave}
-                    disabled={isSaving}
+                    disabled={isSaving || !editedTask.title?.trim() || !editedTask.description?.trim()}
                 >
                     {isSaving ? (
                         <ActivityIndicator color="#FFFFFF" size="small" />
@@ -299,7 +359,7 @@ export default function Task() {
     if (!task) {
         return (
             <View style={styles.container}>
-                <Text style={styles.errorText}>Task not found</Text>
+                <Text style={styles.errorTextNotFound}>Task not found</Text>
             </View>
         );
     }
@@ -557,7 +617,7 @@ const styles = StyleSheet.create({
         color: '#9E9E9E',
         marginTop: 4,
     },
-    errorText: {
+    errorTextNotFound: {
         color: '#E0E0E0',
         fontSize: 16,
         textAlign: 'center',
@@ -673,4 +733,25 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 12,
     },
+    requiredLabel: {
+        flexDirection: 'row' as const,
+        alignItems: 'center' as const,
+        gap: 4,
+    },
+    requiredField: {
+        color: '#FF4444',
+        fontSize: 14,
+    },
+    inputError: {
+        borderWidth: 1,
+        borderColor: '#FF4444',
+    },
+    errorText: {
+        color: '#FF4444',
+        fontSize: 12,
+        marginTop: 4,
+    },
+    disabledButton: {
+        opacity: 0.5,
+    }
 });
