@@ -67,11 +67,6 @@ export const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#FFFFFF',
     },
-    taskCard: {
-        borderBottomColor: '#333',
-        borderBottomWidth: 1,
-        paddingBottom: 8,
-    },
     taskHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -139,5 +134,61 @@ export const styles = StyleSheet.create({
         color: '#808080',
         fontSize: 16,
         textAlign: 'center',
+    },
+    skeleton: {
+        backgroundColor: '#333333',
+        borderRadius: 4,
+        overflow: 'hidden',
+    },
+    errorContainer: {
+        flex: 1,
+        backgroundColor: '#121212',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    errorText: {
+        color: '#FF4444',
+        fontSize: 16,
+        marginTop: 12,
+        textAlign: 'center',
+    },
+    retryButton: {
+        backgroundColor: '#FF4444',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 8,
+        marginTop: 16,
+    },
+    retryButtonText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    createTaskButton: {
+        backgroundColor: '#4CAF50',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 8,
+        marginTop: 16,
+    },
+    createTaskButtonText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    taskCard: {
+        backgroundColor: '#2A2A2A',
+        borderRadius: 12,
+        padding: 16,
+        marginBottom: 12,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
     },
 });

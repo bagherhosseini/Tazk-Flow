@@ -10,17 +10,24 @@ import {
     TextInput,
     ActivityIndicator,
     Modal,
+    RefreshControl,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@clerk/clerk-expo';
 import ApiService, { Project, Task } from '@/services/api';
 import DateTimePicker from '@react-native-community/datetimepicker';
+// fix: Added missing imports for icons
+import { MaterialIcons } from '@expo/vector-icons';
 
 export default function ProjectDetailScreen() {
     const router = useRouter();
     const { id } = useLocalSearchParams();
     const projectId = Array.isArray(id) ? id[0] : id;
     const { getToken } = useAuth();
+
+    const [isLoading, setIsLoading] = React.useState(true);
+    const [isRefreshing, setIsRefreshing] = React.useState(false);
+    const [error, setError] = React.useState<string | null>(null);
     const [project, setProject] = React.useState<Project>();
     const [isEditing, setIsEditing] = React.useState(false);
     const [isSaving, setIsSaving] = React.useState(false);
@@ -34,6 +41,50 @@ export default function ProjectDetailScreen() {
     const [sortBy, setSortBy] = React.useState('dueDate');
     const [formErrors, setFormErrors] = React.useState<Record<string, string>>({});
     const [selectedRole, setSelectedRole] = React.useState<'member' | 'admin' | 'owner'>('member');
+
+    // fix: Added proper error handling and loading state management
+    const fetchProjectData = React.useCallback(async (showRefresh = false) => {
+        try {
+            const token = await getToken();
+            if (!token) {
+                setError('Authentication required');
+                return;
+            }
+
+            if (showRefresh) {
+                setIsRefreshing(true);
+            } else {
+                setIsLoading(true);
+            }
+
+            const projectData = await ApiService.getProject(token, projectId);
+            setProject(projectData);
+            // Initialize editedProject when project data is fetched
+            setEditedProject({
+                name: projectData.name,
+                description: projectData.description,
+                status: projectData.status,
+                task_statuses: projectData.task_statuses,
+                due_date: projectData.due_date,
+            });
+            setError(null);
+        } catch (error) {
+            setError('Failed to load project details');
+            console.error('Error fetching project:', error);
+        } finally {
+            setIsLoading(false);
+            setIsRefreshing(false);
+        }
+    }, [getToken, projectId]);
+
+    React.useEffect(() => {
+        fetchProjectData();
+    }, [projectId]);
+
+    // fix: Added refresh control handler
+    const handleRefresh = React.useCallback(() => {
+        fetchProjectData(true);
+    }, [fetchProjectData]);
 
     const validateEditForm = () => {
         const newErrors: Record<string, string> = {};
@@ -78,24 +129,24 @@ export default function ProjectDetailScreen() {
         }
     };
 
-    React.useEffect(() => {
-        async function fetchData() {
-            try {
-                const token = await getToken();
-                if (!token) return;
-                const project = await ApiService.getProject(token, projectId);
-                setProject(project);
-                setEditedProject({
-                    name: project.name,
-                    description: project.description,
-                });
-            } catch (error) {
-                console.error(error);
-            }
-        }
+    // React.useEffect(() => {
+    //     async function fetchData() {
+    //         try {
+    //             const token = await getToken();
+    //             if (!token) return;
+    //             const project = await ApiService.getProject(token, projectId);
+    //             setProject(project);
+    //             setEditedProject({
+    //                 name: project.name,
+    //                 description: project.description,
+    //             });
+    //         } catch (error) {
+    //             console.error(error);
+    //         }
+    //     }
 
-        fetchData();
-    }, [projectId]);
+    //     fetchData();
+    // }, [projectId]);
 
     const filteredTasks = React.useMemo(() => {
         if (!project || !project.tasks) return null;
@@ -126,7 +177,7 @@ export default function ProjectDetailScreen() {
     const handleSave = async () => {
         try {
             if (!project) return;
-            
+
             if (!validateEditForm()) return;
 
             if (!hasTaskBeenModified()) {
@@ -137,12 +188,21 @@ export default function ProjectDetailScreen() {
             setIsSaving(true);
             const token = await getToken();
             if (!token) return;
-    
+
             const updatedProject = await ApiService.updateProject(token, projectId, editedProject);
             setProject(updatedProject);
+            // Update editedProject with the new values
+            setEditedProject({
+                name: updatedProject.name,
+                description: updatedProject.description,
+                status: updatedProject.status,
+                task_statuses: updatedProject.task_statuses,
+                due_date: updatedProject.due_date,
+            });
             setIsEditing(false);
         } catch (error) {
             console.error('Failed to update project:', error);
+            setError('Failed to update project');
         } finally {
             setIsSaving(false);
         }
@@ -200,6 +260,45 @@ export default function ProjectDetailScreen() {
 
     const roles: Array<'member' | 'admin' | 'owner'> = ['member', 'admin', 'owner'];
 
+    if (isLoading) {
+        return (
+            <SafeAreaView style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#2563EB" />
+                <Text style={styles.loadingText}>Loading project details...</Text>
+            </SafeAreaView>
+        );
+    }
+
+    if (error) {
+        return (
+            <SafeAreaView style={styles.errorContainer}>
+                <MaterialIcons name="error-outline" size={48} color="#EF4444" />
+                <Text style={styles.errorText}>{error}</Text>
+                <TouchableOpacity
+                    style={styles.retryButton}
+                    onPress={() => fetchProjectData()}
+                >
+                    <Text style={styles.retryButtonText}>Retry</Text>
+                </TouchableOpacity>
+            </SafeAreaView>
+        );
+    }
+
+    if (!project) {
+        return (
+            <SafeAreaView style={styles.errorContainer}>
+                <MaterialIcons name="folder-off" size={48} color="#9CA3AF" />
+                <Text style={styles.errorTextNotFound}>Project not found</Text>
+                <TouchableOpacity
+                    style={styles.backButton}
+                    onPress={() => router.back()}
+                >
+                    <Text style={styles.backButtonText}>Go Back</Text>
+                </TouchableOpacity>
+            </SafeAreaView>
+        );
+    }
+
     const renderInviteModal = () => (
         <Modal
             visible={showInviteModal}
@@ -244,7 +343,7 @@ export default function ProjectDetailScreen() {
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={[styles.editButton, styles.saveButton]}
-                            onPress={()=> handleInvite()}
+                            onPress={() => handleInvite()}
                         >
                             <Text style={styles.editButtonText}>Send Invite</Text>
                         </TouchableOpacity>
@@ -348,7 +447,7 @@ export default function ProjectDetailScreen() {
                             onPress={() => setShowDatePicker(true)}
                         >
                             <Text style={styles.dateText}>
-                                {editedProject.due_date 
+                                {editedProject.due_date
                                     ? new Date(editedProject.due_date).toLocaleDateString()
                                     : 'Select due date'}
                             </Text>
@@ -506,85 +605,97 @@ export default function ProjectDetailScreen() {
         </TouchableOpacity>
     );
 
-    if (!project) {
-        return (
-            <SafeAreaView style={styles.container}>
-                <Text style={styles.errorTextNotFound}>Project not found</Text>
-            </SafeAreaView>
-        );
-    }
+    const renderFilters = () => (
+        <View style={styles.filters}>
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.statusFilter}
+            >
+                <TouchableOpacity
+                    style={[
+                        styles.filterChip,
+                        selectedStatus === 'all' && styles.filterChipSelected
+                    ]}
+                    onPress={() => setSelectedStatus('all')}
+                >
+                    <Text style={styles.filterChipText}>All</Text>
+                </TouchableOpacity>
+                {project.task_statuses.map(status => (
+                    <TouchableOpacity
+                        key={status}
+                        style={[
+                            styles.filterChip,
+                            selectedStatus === status && styles.filterChipSelected
+                        ]}
+                        onPress={() => setSelectedStatus(status)}
+                    >
+                        <Text style={styles.filterChipText}>
+                            {status.replace('_', ' ')}
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+            </ScrollView>
+    
+            <View style={styles.sortContainer}>
+                <Text style={styles.sortLabel}>Sort by:</Text>
+                <TouchableOpacity
+                    style={styles.sortButton}
+                    onPress={() => {
+                        const options = ['dueDate', 'priority', 'createdAt'];
+                        const currentIndex = options.indexOf(sortBy);
+                        setSortBy(options[(currentIndex + 1) % options.length]);
+                    }}
+                >
+                    <Text style={styles.sortButtonText}>
+                        {sortBy.replace(/([A-Z])/g, ' $1').toLowerCase()}
+                    </Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
 
     return (
         <SafeAreaView style={styles.container}>
-            {renderProjectHeader()}
-            {renderInviteModal()}
-
-            <TouchableOpacity
-                style={styles.inviteButton}
-                onPress={() => setShowInviteModal(true)}
-            >
-                <Text style={styles.inviteButtonText}>+ Invite People</Text>
-            </TouchableOpacity>
-
-            <View style={styles.filters}>
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.statusFilter}
-                >
-                    <TouchableOpacity
-                        style={[
-                            styles.filterChip,
-                            selectedStatus === 'all' && styles.filterChipSelected
-                        ]}
-                        onPress={() => setSelectedStatus('all')}
-                    >
-                        <Text style={styles.filterChipText}>All</Text>
-                    </TouchableOpacity>
-                    {project.task_statuses.map(status => (
+            <FlatList
+                ListHeaderComponent={
+                    <>
+                        {renderProjectHeader()}
                         <TouchableOpacity
-                            key={status}
-                            style={[
-                                styles.filterChip,
-                                selectedStatus === status && styles.filterChipSelected
-                            ]}
-                            onPress={() => setSelectedStatus(status)}
+                            style={styles.inviteButton}
+                            onPress={() => setShowInviteModal(true)}
                         >
-                            <Text style={styles.filterChipText}>
-                                {status.replace('_', ' ')}
-                            </Text>
+                            <MaterialIcons name="person-add" size={20} color="#FFFFFF" />
+                            <Text style={styles.inviteButtonText}>Invite People</Text>
                         </TouchableOpacity>
-                    ))}
-                </ScrollView>
-
-                <View style={styles.sortContainer}>
-                    <Text style={styles.sortLabel}>Sort by:</Text>
-                    <TouchableOpacity
-                        style={styles.sortButton}
-                        onPress={() => {
-                            const options = ['dueDate', 'priority', 'createdAt'];
-                            const currentIndex = options.indexOf(sortBy);
-                            setSortBy(options[(currentIndex + 1) % options.length]);
-                        }}
-                    >
-                        <Text style={styles.sortButtonText}>
-                            {sortBy.replace(/([A-Z])/g, ' $1').toLowerCase()}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-
-            {project.tasks ? (
-                <FlatList
-                    data={filteredTasks}
-                    renderItem={renderTask}
-                    keyExtractor={item => item.id}
-                    contentContainerStyle={styles.taskList}
-                    showsVerticalScrollIndicator={false}
-                />
-            ) : (
-                <Text style={styles.errorTextNotFound}>No tasks found</Text>
-            )}
+                        {renderFilters()}
+                    </>
+                }
+                data={filteredTasks}
+                renderItem={renderTask}
+                keyExtractor={item => item.id}
+                contentContainerStyle={styles.taskList}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={isRefreshing}
+                        onRefresh={handleRefresh}
+                        tintColor="#2563EB"
+                    />
+                }
+                ListEmptyComponent={
+                    <View style={styles.emptyContainer}>
+                        <MaterialIcons name="assignment" size={48} color="#9CA3AF" />
+                        <Text style={styles.emptyText}>No tasks found</Text>
+                        <TouchableOpacity
+                            style={styles.createTaskButton}
+                            onPress={() => router.push(`/tasks/create?projectId=${projectId}`)}
+                        >
+                            <Text style={styles.createTaskButtonText}>Create New Task</Text>
+                        </TouchableOpacity>
+                    </View>
+                }
+            />
+            {renderInviteModal()}
         </SafeAreaView>
     );
 }
@@ -596,7 +707,7 @@ const styles = StyleSheet.create({
         gap: 16,
     },
     header: {
-        padding: 24,
+        padding: 8,
         flexDirection: 'row',
         alignItems: 'center',
     },
@@ -621,8 +732,8 @@ const styles = StyleSheet.create({
         color: '#9CA3AF',
     },
     filters: {
-        paddingHorizontal: 24,
-        marginBottom: 16,
+        // paddingHorizontal: 24,
+        marginVertical: 16,
     },
     statusFilter: {
         marginBottom: 16,
@@ -679,12 +790,6 @@ const styles = StyleSheet.create({
     },
     taskList: {
         padding: 16,
-    },
-    taskCard: {
-        backgroundColor: '#1E1E1E',
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 16,
     },
     taskHeader: {
         marginBottom: 12,
@@ -865,15 +970,6 @@ const styles = StyleSheet.create({
         color: '#9CA3AF',
         fontSize: 14,
     },
-    inviteButton: {
-        // backgroundColor: '#374151',
-        backgroundColor: '#2563EB',
-        borderRadius: 8,
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        marginHorizontal: 16,
-        alignItems: 'center',
-    },
     inviteButtonText: {
         color: '#FFFFFF',
         fontSize: 14,
@@ -970,5 +1066,79 @@ const styles = StyleSheet.create({
     statusChipError: {
         borderColor: '#EF4444',
         borderWidth: 1,
+    },
+    loadingContainer: {
+        flex: 1,
+        backgroundColor: '#121212',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 24,
+    },
+    loadingText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        marginTop: 16,
+    },
+    errorContainer: {
+        flex: 1,
+        backgroundColor: '#121212',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 24,
+    },
+    retryButton: {
+        backgroundColor: '#2563EB',
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        borderRadius: 8,
+        marginTop: 16,
+    },
+    retryButtonText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '500',
+    },
+    emptyContainer: {
+        alignItems: 'center',
+        padding: 24,
+    },
+    emptyText: {
+        color: '#9CA3AF',
+        fontSize: 16,
+        marginTop: 12,
+        marginBottom: 16,
+    },
+    createTaskButton: {
+        backgroundColor: '#2563EB',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 8,
+    },
+    createTaskButtonText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    inviteButton: {
+        backgroundColor: '#2563EB',
+        borderRadius: 8,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    taskCard: {
+        backgroundColor: '#1E1E1E',
+        borderRadius: 12,
+        padding: 16,
+        marginBottom: 16,
+        // fix: Added shadow for better depth
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
     },
 });

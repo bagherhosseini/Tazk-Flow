@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, Animated, Platform, StatusBar as RNStatusBar, TouchableOpacity, Button } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Animated, Platform, StatusBar as RNStatusBar, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, Stack, usePathname } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,12 +18,37 @@ interface DrawerItemProps {
   currentPath: string;
 }
 
+type AppRoutes =
+  | '/home'
+  | '/tasks/personalTasks'
+  | '/tasks/projectsTasks'
+  | '/projects/projects'
+  | '/invite'
+  | '/profile'
+  | '/tasks/create'
+  | '/projects/create';
+
+interface CustomHeaderProps {
+  onMenuPress: () => void;
+  onAddPress: () => void;
+  onBackPress: () => void;
+  isBackButtonShown: boolean;
+}
+
+
+const LoadingSpinner = () => (
+  <View style={styles.loadingContainer}>
+    <ActivityIndicator size="large" color="#FFFFFF" />
+  </View>
+);
+
 const DrawerItem = ({ label, icon, route, onPress, isActive, currentPath }: DrawerItemProps) => (
   <Pressable
     onPress={onPress}
-    style={[
+    style={({ pressed }) => [
       styles.drawerItem,
-      isActive && styles.drawerItemActive
+      isActive && styles.drawerItemActive,
+      pressed && styles.drawerItemPressed
     ]}
     disabled={currentPath === route}
   >
@@ -41,13 +66,12 @@ const DrawerItem = ({ label, icon, route, onPress, isActive, currentPath }: Draw
   </Pressable>
 );
 
-const CustomHeader = ({ onMenuPress, onAddPress, onBackPress, isBackButtonShown }: { onMenuPress: () => void, onAddPress: () => void, onBackPress: () => void, isBackButtonShown: boolean }) => (
+const CustomHeader = ({ onMenuPress, onAddPress, onBackPress, isBackButtonShown } : CustomHeaderProps) => (
   <View style={styles.headerContainer}>
     {isBackButtonShown ? (
-      // <Button title="Back" onPress={onBackPress} />
       <Pressable
         onPress={onBackPress}
-        style={styles.menuButton}
+        style={({ pressed }) => [styles.menuButton, pressed && styles.buttonPressed]}
       >
         <MaterialCommunityIcons
           name="arrow-left"
@@ -58,7 +82,7 @@ const CustomHeader = ({ onMenuPress, onAddPress, onBackPress, isBackButtonShown 
     ) : (
       <Pressable
         onPress={onMenuPress}
-        style={styles.menuButton}
+        style={({ pressed }) => [styles.menuButton, pressed && styles.buttonPressed]}
       >
         <MaterialCommunityIcons
           name="menu"
@@ -67,9 +91,10 @@ const CustomHeader = ({ onMenuPress, onAddPress, onBackPress, isBackButtonShown 
         />
       </Pressable>
     )}
+    <Text style={styles.headerTitle}>Task Manager</Text>
     <Pressable
       onPress={onAddPress}
-      style={styles.menuButtonAdd}
+      style={({ pressed }) => [styles.menuButton, pressed && styles.buttonPressed]}
     >
       <MaterialCommunityIcons
         name="plus"
@@ -84,16 +109,18 @@ export default function RootLayout() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [activeRoute, setActiveRoute] = useState('/home');
   const [isBackButtonShown, setIsBackButtonShown] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const currentPath = usePathname();
   const translateX = useState(new Animated.Value(-DRAWER_WIDTH))[0];
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isLoaded } = useAuth();
 
   useEffect(() => {
-    if (!isSignedIn) {
+    if (isLoaded && !isSignedIn) {
       router.replace('../');
     }
-  }, [isSignedIn]);
+    setIsLoading(false);
+  }, [isSignedIn, isLoaded]);
 
   useEffect(() => {
     setActiveRoute(currentPath);
@@ -117,7 +144,8 @@ export default function RootLayout() {
     router.back();
   };
 
-  const navigateTo = (route: string) => {
+  // fix: Restored original navigation logic
+  const navigateTo = (route: AppRoutes) => {
     if (currentPath !== route) {
       setActiveRoute(route);
       router.push(route as any);
@@ -125,13 +153,13 @@ export default function RootLayout() {
     }
   };
 
-  const drawerItems = [
+  const drawerItems: { label: string; icon: string; route: AppRoutes }[] = [
     { label: 'Home', icon: 'home', route: '/home' },
-    { label: 'Personal', icon: 'folder-account', route: '/tasks/personalTasks' },
-    { label: 'Project', icon: 'folder', route: '/tasks/projectsTasks' },
-    { label: 'Projects', icon: 'layers', route: '/projects/projects' },
-    { label: 'Invites', icon: 'archive-plus', route: '/invite' },
-    { label: 'Profile', icon: 'account', route: '/profile' },
+    { label: 'Personal Tasks', icon: 'account', route: '/tasks/personalTasks' },
+    { label: 'Project Tasks', icon: 'clipboard-list', route: '/tasks/projectsTasks' },
+    { label: 'Projects', icon: 'view-grid', route: '/projects/projects' },
+    { label: 'Invitations', icon: 'email-plus', route: '/invite' },
+    { label: 'Profile', icon: 'account-circle', route: '/profile' },
   ];
 
   useEffect(() => {
@@ -142,13 +170,24 @@ export default function RootLayout() {
     }
   }, [currentPath]);
 
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
 
       <Stack
         screenOptions={{
-          header: () => <CustomHeader onMenuPress={toggleDrawer} onAddPress={addTask} onBackPress={goBack} isBackButtonShown={isBackButtonShown} />,
+          header: () => (
+            <CustomHeader
+              onMenuPress={toggleDrawer}
+              onAddPress={addTask}
+              onBackPress={goBack}
+              isBackButtonShown={isBackButtonShown}
+            />
+          ),
         }}
       />
 
@@ -162,7 +201,8 @@ export default function RootLayout() {
       <Animated.View
         style={[
           styles.drawer,
-          { transform: [{ translateX }] }
+          { transform: [{ translateX }] },
+          styles.drawerShadow
         ]}
       >
         <SafeAreaView style={styles.drawerContent} edges={['top', 'bottom']}>
@@ -180,6 +220,9 @@ export default function RootLayout() {
               currentPath={currentPath}
             />
           ))}
+          <View style={styles.drawerFooter}>
+            <Text style={styles.versionText}>Version 1.0.0</Text>
+          </View>
         </SafeAreaView>
       </Animated.View>
     </View>
@@ -191,26 +234,39 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#121212',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#121212',
+  },
   headerContainer: {
-    paddingTop: STATUSBAR_HEIGHT + 16, // Add padding for status bar plus some space
+    paddingTop: STATUSBAR_HEIGHT + 16,
     paddingHorizontal: 16,
     backgroundColor: '#121212',
     paddingBottom: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: '100%',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2A2A2A',
+  },
+  headerTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: 'bold',
   },
   menuButton: {
     padding: 8,
-    marginLeft: -8,
+    borderRadius: 8,
   },
-  menuButtonAdd: {
-    padding: 8,
-    marginLeft: -32,
+  buttonPressed: {
+    opacity: 0.7,
+    backgroundColor: '#2A2A2A',
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     zIndex: 100,
   },
   drawer: {
@@ -219,21 +275,34 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: DRAWER_WIDTH,
-    backgroundColor: '#121212',
+    backgroundColor: '#1A1A1A',
     zIndex: 150,
+  },
+  drawerShadow: {
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 2, height: 0 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 5,
+      },
+    }),
   },
   drawerContent: {
     flex: 1,
   },
   drawerHeader: {
     padding: 20,
-    paddingTop: STATUSBAR_HEIGHT + 16, // Match header padding
+    paddingTop: STATUSBAR_HEIGHT + 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#1E1E1E',
+    borderBottomColor: '#2A2A2A',
   },
   drawerTitle: {
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
   },
   drawerItem: {
@@ -241,9 +310,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     paddingLeft: 20,
+    borderRadius: 8,
+    marginHorizontal: 8,
+    marginVertical: 4,
   },
   drawerItemActive: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#2A2A2A',
+  },
+  drawerItemPressed: {
+    opacity: 0.7,
   },
   drawerLabel: {
     marginLeft: 16,
@@ -253,5 +328,15 @@ const styles = StyleSheet.create({
   },
   drawerLabelActive: {
     color: '#FFFFFF',
+  },
+  drawerFooter: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#2A2A2A',
+    alignItems: 'center',
+  },
+  versionText: {
+    color: '#666666',
+    fontSize: 12,
   },
 });

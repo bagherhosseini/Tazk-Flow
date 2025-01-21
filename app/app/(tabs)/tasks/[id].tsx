@@ -1,26 +1,41 @@
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator } from 'react-native';
-import React, { useEffect } from 'react';
-import { useLocalSearchParams } from 'expo-router';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, RefreshControl } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { useLocalSearchParams, router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { useAuth } from '@clerk/clerk-expo';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import ApiService, { Task as TaskType } from '@/services/api';
 
+// fix: Added loading states interface for better type safety
+interface LoadingStates {
+    initial: boolean;
+    saving: boolean;
+    refreshing: boolean;
+}
+
 export default function Task() {
     const { id } = useLocalSearchParams();
     const taskId = Array.isArray(id) ? id[0] : id;
     const { getToken, userId } = useAuth();
-    const [task, setTask] = React.useState<TaskType>();
-    const [isEditing, setIsEditing] = React.useState(false);
-    const [isSaving, setIsSaving] = React.useState(false);
-    const [editedTask, setEditedTask] = React.useState<Partial<TaskType>>({});
-    const [showDatePicker, setShowDatePicker] = React.useState(false);
-    const [datePickerMode, setDatePickerMode] = React.useState<'date' | 'time'>('date');
-    const [selectedDate, setSelectedDate] = React.useState<Date>(new Date());
-    const [visibleEmail, setVisibleEmail] = React.useState<string | null>(null);
-    const [visibleEmailMain, setVisibleEmailMain] = React.useState<boolean>(false);
-    const [formErrors, setFormErrors] = React.useState<Record<string, string>>({});
+    const [task, setTask] = useState<TaskType>();
+    const [isEditing, setIsEditing] = useState(false);
+    // fix: Consolidated loading states into a single object
+    const [loading, setLoading] = useState<LoadingStates>({
+        initial: true,
+        saving: false,
+        refreshing: false,
+    });
+    const [editedTask, setEditedTask] = useState<Partial<TaskType>>({});
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [datePickerMode, setDatePickerMode] = useState<'date' | 'time'>('date');
+    const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+    const [visibleEmail, setVisibleEmail] = useState<string | null>(null);
+    const [visibleEmailMain, setVisibleEmailMain] = useState<boolean>(false);
+    const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+    // fix: Added error state for better error handling
+    const [error, setError] = useState<string | null>(null);
 
     const validateEditForm = () => {
         const newErrors: Record<string, string> = {};
@@ -42,7 +57,6 @@ export default function Task() {
         return Object.keys(newErrors).length === 0;
     };
 
-    // Function to check if task has been modified
     const hasTaskBeenModified = () => {
         if (!task) return false;
 
@@ -56,34 +70,48 @@ export default function Task() {
         );
     };
 
-    // Function to get member display name with additional info
     const getMemberDisplayName = (member: { first_name: string; last_name: string; role: string; email: string }) => {
         return { name: `${member.first_name} ${member.last_name} (${member.role})`, email: member.email };
     };
 
-    useEffect(() => {
-        async function fetchData() {
-            try {
-                const token = await getToken();
-                if (!token) return;
-                const task = await ApiService.getTask(token, taskId);
-                setTask(task);
-                setEditedTask({
-                    title: task.title,
-                    description: task.description,
-                    status: task.status,
-                    priority: task.priority,
-                    due_date: task.due_date,
-                    assigned_to: task.assigned_to,
-                });
-                setSelectedDate(new Date(task.due_date));
-            } catch (error) {
-                console.error(error);
+    // fix: Improved error handling in fetchData
+    const fetchData = async () => {
+        try {
+            const token = await getToken();
+            if (!token) {
+                setError('Authentication required');
+                return;
             }
+            const taskData = await ApiService.getTask(token, taskId);
+            setTask(taskData);
+            setEditedTask({
+                title: taskData.title,
+                description: taskData.description,
+                status: taskData.status,
+                priority: taskData.priority,
+                due_date: taskData.due_date,
+                assigned_to: taskData.assigned_to,
+            });
+            setSelectedDate(new Date(taskData.due_date));
+            setError(null);
+        } catch (error) {
+            setError('Failed to load task');
+            console.error(error);
+        } finally {
+            setLoading(prev => ({ ...prev, initial: false }));
         }
+    };
 
+    useEffect(() => {
         fetchData();
     }, [taskId]);
+
+    // fix: Added refresh control functionality
+    const onRefresh = useCallback(async () => {
+        setLoading(prev => ({ ...prev, refreshing: true }));
+        await fetchData();
+        setLoading(prev => ({ ...prev, refreshing: false }));
+    }, []);
 
     const handleSave = async () => {
         try {
@@ -95,9 +123,12 @@ export default function Task() {
                 return;
             }
 
-            setIsSaving(true);
+            setLoading(prev => ({ ...prev, saving: true }));
             const token = await getToken();
-            if (!token) return;
+            if (!token) {
+                setError('Authentication required');
+                return;
+            }
 
             const updatedTask = await ApiService.updateTask(token, taskId, editedTask);
 
@@ -108,51 +139,25 @@ export default function Task() {
             });
 
             setIsEditing(false);
+            setError(null);
         } catch (error) {
+            setError('Failed to update task');
             console.error('Failed to update task:', error);
         } finally {
-            setIsSaving(false);
+            setLoading(prev => ({ ...prev, saving: false }));
         }
     };
-
-    const refreshTaskData = async () => {
-        try {
-            const token = await getToken();
-            if (!token) return;
-            const freshTask = await ApiService.getTask(token, taskId);
-            setTask(freshTask);
-            setEditedTask({
-                title: freshTask.title,
-                description: freshTask.description,
-                status: freshTask.status,
-                priority: freshTask.priority,
-                due_date: freshTask.due_date,
-                assigned_to: freshTask.assigned_to,
-            });
-            setSelectedDate(new Date(freshTask.due_date));
-        } catch (error) {
-            console.error('Failed to refresh task data:', error);
-        }
-    };
-
-    useEffect(() => {
-        if (!isEditing && task) {
-            refreshTaskData();
-        }
-    }, [isEditing]);
 
     const handleDateChange = (event: any, selectedDate?: Date) => {
         setShowDatePicker(false);
         if (selectedDate) {
             if (datePickerMode === 'date') {
-                // Keep the existing time, update the date
                 const currentDate = new Date(editedTask.due_date || task?.due_date || new Date());
                 selectedDate.setHours(currentDate.getHours(), currentDate.getMinutes());
                 setSelectedDate(selectedDate);
                 setDatePickerMode('time');
                 setShowDatePicker(true);
             } else {
-                // Update the time
                 const finalDate = new Date(selectedDate);
                 setSelectedDate(finalDate);
                 setEditedTask(prev => ({
@@ -165,7 +170,7 @@ export default function Task() {
     };
 
     const getPriorityColor = (priority: string) => {
-        switch (priority) {
+        switch (priority.toLowerCase()) {
             case 'high':
                 return '#FF4444';
             case 'medium':
@@ -176,6 +181,43 @@ export default function Task() {
                 return '#757575';
         }
     };
+
+    // fix: Added loading state UI
+    if (loading.initial) {
+        return (
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#2563EB" />
+                <Text style={styles.loadingText}>Loading task...</Text>
+            </View>
+        );
+    }
+
+    // fix: Added error state UI
+    if (error) {
+        return (
+            <View style={styles.errorContainer}>
+                <MaterialCommunityIcons name="alert-circle" size={48} color="#FF4444" />
+                <Text style={styles.errorText}>{error}</Text>
+                <TouchableOpacity style={styles.retryButton} onPress={fetchData}>
+                    <Text style={styles.retryButtonText}>Retry</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
+
+    if (!task) {
+        return (
+            <View style={styles.container}>
+                <Text style={styles.errorTextNotFound}>Task not found</Text>
+                <TouchableOpacity 
+                    style={styles.backButton} 
+                    onPress={() => router.back()}
+                >
+                    <Text style={styles.backButtonText}>Go Back</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
 
     const renderEditableContent = () => (
         <View style={styles.editContainer}>
@@ -374,9 +416,9 @@ export default function Task() {
                         (!editedTask.title?.trim() || !editedTask.description?.trim()) && styles.disabledButton
                     ]}
                     onPress={handleSave}
-                    disabled={isSaving || !editedTask.title?.trim() || !editedTask.description?.trim()}
+                    disabled={loading.saving || !editedTask.title?.trim() || !editedTask.description?.trim()}
                 >
-                    {isSaving ? (
+                    {loading.saving ? (
                         <ActivityIndicator color="#FFFFFF" size="small" />
                     ) : (
                         <Text style={styles.editButtonText}>Save</Text>
@@ -395,7 +437,16 @@ export default function Task() {
     }
 
     return (
-        <ScrollView style={styles.container}>
+        <ScrollView 
+            style={styles.container}
+            refreshControl={
+                <RefreshControl
+                    refreshing={loading.refreshing}
+                    onRefresh={onRefresh}
+                    tintColor="#2563EB"
+                />
+            }
+        >
             <View style={styles.header}>
                 {isEditing ? (
                     renderEditableContent()
@@ -823,12 +874,56 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#FF4444',
     },
+    disabledButton: {
+        opacity: 0.5,
+    },
+    loadingContainer: {
+        flex: 1,
+        backgroundColor: '#121212',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 16,
+    },
+    loadingText: {
+        color: '#E0E0E0',
+        fontSize: 16,
+    },
+    errorContainer: {
+        flex: 1,
+        backgroundColor: '#121212',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+        gap: 16,
+    },
     errorText: {
         color: '#FF4444',
         fontSize: 12,
-        marginTop: 4,
+        textAlign: 'center',
     },
-    disabledButton: {
-        opacity: 0.5,
-    }
+    retryButton: {
+        backgroundColor: '#2563EB',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 8,
+        marginTop: 8,
+    },
+    retryButtonText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    backButton: {
+        backgroundColor: '#2563EB',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 8,
+        marginTop: 16,
+        alignSelf: 'center',
+    },
+    backButtonText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '500',
+    },
 });

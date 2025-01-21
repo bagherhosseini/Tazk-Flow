@@ -11,6 +11,7 @@ import {
     ScrollView,
     Switch,
     Alert,
+    ActivityIndicator,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -18,6 +19,13 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { BasicProject, Task } from '@/services/api';
 import { useAuth } from '@clerk/clerk-expo';
 import ApiService from '@/services/api';
+import { LinearGradient } from 'expo-linear-gradient';
+
+// fix: Added loading states
+interface LoadingStates {
+    projects: boolean;
+    createTask: boolean;
+}
 
 export default function CreateScreen() {
     const { getToken, userId } = useAuth();
@@ -36,10 +44,18 @@ export default function CreateScreen() {
     const [assignedTo, setAssignedTo] = React.useState<string>('');
     const [visibleEmail, setVisibleEmail] = React.useState<string | null>(null);
     const [errors, setErrors] = React.useState<Record<string, string>>({});
-    
+    // fix: Added loading states initialization
+    const [loading, setLoading] = React.useState<LoadingStates>({
+        projects: true,
+        createTask: false,
+    });
+
+    // fix: Added error handling for network failures
+    const [networkError, setNetworkError] = React.useState<string | null>(null);
+
     const validateForm = () => {
         const newErrors: Record<string, string> = {};
-        
+
         if (!title.trim()) {
             newErrors.title = 'Title is required';
         }
@@ -49,24 +65,29 @@ export default function CreateScreen() {
         if (isProjectTask && !selectedProject) {
             newErrors.project = 'Project selection is required';
         }
-        
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
 
-    React.useEffect(() => {
-        async function fetchTasks() {
-            try {
-                const token = await getToken();
-                if (!token) return;
-                const tasks = await ApiService.getUserBasicProjects(token);
-                setUserProjects(tasks);
-            } catch (error) {
-                console.error(error);
-            }
-        };
+    async function fetchProjects() {
+        try {
+            setLoading(prev => ({ ...prev, projects: true }));
+            setNetworkError(null);
+            const token = await getToken();
+            if (!token) return;
+            const projects = await ApiService.getUserBasicProjects(token);
+            setUserProjects(projects);
+        } catch (error) {
+            setNetworkError('Failed to load projects. Please try again.');
+            console.error(error);
+        } finally {
+            setLoading(prev => ({ ...prev, projects: false }));
+        }
+    }
 
-        fetchTasks();
+    React.useEffect(() => {
+        fetchProjects();
     }, []);
 
     const handleProjectSelect = (project: BasicProject) => {
@@ -110,6 +131,7 @@ export default function CreateScreen() {
     const onCreatePress = async () => {
         try {
             if (!validateForm()) return;
+            setLoading(prev => ({ ...prev, createTask: true }));
 
             if (selectedProject?.due_date && dueDate > new Date(selectedProject.due_date)) {
                 Alert.alert(
@@ -135,10 +157,17 @@ export default function CreateScreen() {
             };
             const token = await getToken();
             if (!token) return;
-            const createdTask = await ApiService.createTask(token, newTask);
+            await ApiService.createTask(token, newTask);
             router.back();
         } catch (err) {
+            Alert.alert(
+                "Error",
+                "Failed to create task. Please try again.",
+                [{ text: "OK" }]
+            );
             console.error(JSON.stringify(err, null, 2));
+        } finally {
+            setLoading(prev => ({ ...prev, createTask: false }));
         }
     };
 
@@ -151,12 +180,17 @@ export default function CreateScreen() {
             ]}
             onPress={() => setPriority(value)}
         >
-            <Text style={[
-                styles.priorityButtonText,
-                { color: priority === value ? '#FFFFFF' : color }
-            ]}>
-                {label}
-            </Text>
+            <LinearGradient
+                colors={priority === value ? [color, color + '99'] : ['transparent', 'transparent']}
+                style={styles.priorityButtonGradient}
+            >
+                <Text style={[
+                    styles.priorityButtonText,
+                    { color: priority === value ? '#FFFFFF' : color }
+                ]}>
+                    {label}
+                </Text>
+            </LinearGradient>
         </TouchableOpacity>
     );
 
@@ -240,7 +274,27 @@ export default function CreateScreen() {
                 style={styles.container}
             >
                 <ScrollView style={styles.content}>
-                    <Text style={styles.title}>Create New Task</Text>
+                    <View style={styles.header}>
+                        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                            <MaterialCommunityIcons name="arrow-left" size={24} color="#FFFFFF" />
+                        </TouchableOpacity>
+                        <Text style={styles.title}>Create New Task</Text>
+                    </View>
+
+                    {networkError && (
+                        <View style={styles.errorBanner}>
+                            <Text style={styles.errorBannerText}>{networkError}</Text>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    setNetworkError(null);
+                                    fetchProjects();
+                                }}
+                                style={styles.retryButton}
+                            >
+                                <Text style={styles.retryButtonText}>Retry</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
 
                     <View style={styles.formContainer}>
                         <View style={styles.requiredLabel}>
@@ -255,7 +309,7 @@ export default function CreateScreen() {
                                     setErrors(prev => ({ ...prev, title: '' }));
                                 }
                             }}
-                            placeholder="Title"
+                            placeholder="Enter task title"
                             placeholderTextColor="#666"
                             style={[
                                 styles.input,
@@ -278,7 +332,7 @@ export default function CreateScreen() {
                                     setErrors(prev => ({ ...prev, description: '' }));
                                 }
                             }}
-                            placeholder="Description"
+                            placeholder="Enter task description"
                             placeholderTextColor="#666"
                             style={[
                                 styles.input,
@@ -302,23 +356,30 @@ export default function CreateScreen() {
                             </View>
                         </View>
 
-                        <TouchableOpacity
-                            style={styles.dateInput}
-                            onPress={() => setShowDatePicker(true)}
-                        >
-                            <Text style={styles.dateInputText}>
-                                {dueDate.toLocaleDateString()}
-                            </Text>
-                        </TouchableOpacity>
+                        <View style={styles.dateSection}>
+                            <Text style={styles.sectionTitle}>Due Date & Time</Text>
+                            <View style={styles.dateTimeContainer}>
+                                <TouchableOpacity
+                                    style={[styles.dateInput, styles.dateInputHalf]}
+                                    onPress={() => setShowDatePicker(true)}
+                                >
+                                    <MaterialCommunityIcons name="calendar" size={20} color="#666" />
+                                    <Text style={styles.dateInputText}>
+                                        {dueDate.toLocaleDateString()}
+                                    </Text>
+                                </TouchableOpacity>
 
-                        <TouchableOpacity
-                            style={styles.dateInput}
-                            onPress={() => setShowTimePicker(true)}
-                        >
-                            <Text style={styles.dateInputText}>
-                                {dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </Text>
-                        </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.dateInput, styles.dateInputHalf]}
+                                    onPress={() => setShowTimePicker(true)}
+                                >
+                                    <MaterialCommunityIcons name="clock-outline" size={20} color="#666" />
+                                    <Text style={styles.dateInputText}>
+                                        {dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
 
                         {(showDatePicker || showTimePicker) && (
                             <DateTimePicker
@@ -352,23 +413,31 @@ export default function CreateScreen() {
                                     </TouchableOpacity>
                                 </View>
 
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.projectList}>
-                                    {userProjects ?
-                                        userProjects.map((project) => (
-                                            <TouchableOpacity
-                                                key={project.id}
-                                                style={[
-                                                    styles.projectChip,
-                                                    selectedProject?.id === project.id && styles.projectChipSelected,
-                                                ]}
-                                                onPress={() => handleProjectSelect(project)}
-                                            >
-                                                <Text style={styles.projectChipText}>{project.name}</Text>
-                                            </TouchableOpacity>
-                                        ))
-                                        : <Text>No project</Text>
-                                    }
-                                </ScrollView>
+                                {loading.projects ? (
+                                    <View style={styles.loadingContainer}>
+                                        <ActivityIndicator color="#2563EB" />
+                                        <Text style={styles.loadingText}>Loading projects...</Text>
+                                    </View>
+                                ) : (
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.projectList}>
+                                        {userProjects && userProjects.length > 0 ? (
+                                            userProjects.map((project) => (
+                                                <TouchableOpacity
+                                                    key={project.id}
+                                                    style={[
+                                                        styles.projectChip,
+                                                        selectedProject?.id === project.id && styles.projectChipSelected,
+                                                    ]}
+                                                    onPress={() => handleProjectSelect(project)}
+                                                >
+                                                    <Text style={styles.projectChipText}>{project.name}</Text>
+                                                </TouchableOpacity>
+                                            ))
+                                        ) : (
+                                            <Text style={styles.noProjectsText}>No projects available</Text>
+                                        )}
+                                    </ScrollView>
+                                )}
 
                                 {selectedProject && selectedProject.task_statuses && (
                                     <View style={styles.statusSection}>
@@ -396,11 +465,15 @@ export default function CreateScreen() {
                             onPress={onCreatePress}
                             style={[
                                 styles.button,
-                                (!title.trim() || !description.trim()) && styles.disabledButton
+                                (!title.trim() || !description.trim() || loading.createTask) && styles.disabledButton
                             ]}
-                            disabled={!title.trim() || !description.trim()}
+                            disabled={!title.trim() || !description.trim() || loading.createTask}
                         >
-                            <Text style={styles.buttonText}>Create Task</Text>
+                            {loading.createTask ? (
+                                <ActivityIndicator color="#FFFFFF" />
+                            ) : (
+                                <Text style={styles.buttonText}>Create Task</Text>
+                            )}
                         </TouchableOpacity>
                     </View>
                 </ScrollView>
@@ -416,41 +489,52 @@ const styles = StyleSheet.create({
     },
     content: {
         flex: 1,
-        // padding: 24,
         paddingHorizontal: 24,
-        marginVertical: 24,
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 24,
+        marginBottom: 32,
+    },
+    backButton: {
+        marginRight: 16,
     },
     title: {
-        fontSize: 32,
+        fontSize: 28,
         fontWeight: 'bold',
         color: '#FFFFFF',
-        marginBottom: 32,
     },
     formContainer: {
         flex: 1,
-        gap: 16,
+        gap: 20,
     },
     input: {
         backgroundColor: '#1E1E1E',
-        borderRadius: 8,
+        borderRadius: 12,
         padding: 16,
         color: '#FFFFFF',
         fontSize: 16,
+        borderWidth: 1,
+        borderColor: '#2A2A2A',
     },
     textArea: {
-        minHeight: 100,
+        minHeight: 120,
     },
     switchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
+        backgroundColor: '#1E1E1E',
+        padding: 16,
+        borderRadius: 12,
     },
     switchLabel: {
         color: '#FFFFFF',
         fontSize: 16,
     },
     projectSection: {
-        gap: 8,
+        gap: 12,
     },
     projectHeader: {
         flexDirection: 'row',
@@ -464,6 +548,8 @@ const styles = StyleSheet.create({
     },
     addProjectButton: {
         padding: 8,
+        backgroundColor: '#1E1E1E',
+        borderRadius: 8,
     },
     addProjectButtonText: {
         color: '#2563EB',
@@ -476,23 +562,41 @@ const styles = StyleSheet.create({
     projectChip: {
         backgroundColor: '#1E1E1E',
         paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 16,
+        paddingVertical: 10,
+        borderRadius: 20,
         marginRight: 8,
+        borderWidth: 1,
+        borderColor: '#2A2A2A',
     },
     projectChipSelected: {
         backgroundColor: '#2563EB',
+        borderColor: '#2563EB',
     },
     projectChipText: {
         color: '#FFFFFF',
         fontSize: 14,
+        fontWeight: '500',
+    },
+    dateSection: {
+        gap: 8,
+    },
+    dateTimeContainer: {
+        flexDirection: 'row',
+        gap: 12,
     },
     dateInput: {
         backgroundColor: '#1E1E1E',
-        borderRadius: 8,
+        borderRadius: 12,
         padding: 16,
         height: 56,
-        justifyContent: 'center',
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#2A2A2A',
+    },
+    dateInputHalf: {
+        flex: 1,
+        gap: 8,
     },
     dateInputText: {
         color: '#FFFFFF',
@@ -500,11 +604,12 @@ const styles = StyleSheet.create({
     },
     button: {
         backgroundColor: '#2563EB',
-        borderRadius: 8,
+        borderRadius: 12,
         height: 56,
         alignItems: 'center',
         justifyContent: 'center',
-        marginTop: 16,
+        marginTop: 24,
+        marginBottom: 32,
     },
     buttonText: {
         color: '#FFFFFF',
@@ -513,26 +618,29 @@ const styles = StyleSheet.create({
     },
     priorityButtons: {
         flexDirection: 'row',
-        gap: 8,
+        gap: 12,
     },
     priorityButton: {
         flex: 1,
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        borderRadius: 8,
+        borderRadius: 12,
         borderWidth: 1,
+        overflow: 'hidden',
+    },
+    priorityButtonGradient: {
+        paddingVertical: 10,
+        paddingHorizontal: 12,
         alignItems: 'center',
     },
     priorityButtonText: {
         fontSize: 14,
-        fontWeight: '500',
+        fontWeight: '600',
     },
     prioritySection: {
-        gap: 8,
+        gap: 12,
     },
     statusSection: {
         marginTop: 16,
-        gap: 8,
+        gap: 12,
     },
     statusButtons: {
         flexDirection: 'row',
@@ -543,58 +651,67 @@ const styles = StyleSheet.create({
         fontSize: 14,
     },
     statusButtonTextSelected: {
-        fontWeight: '500',
+        fontWeight: '600',
     },
     statusButton: {
-        paddingVertical: 6,
-        paddingHorizontal: 12,
-        borderRadius: 16,
-        backgroundColor: '#1A1A1A',
-        marginRight: 8,
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        backgroundColor: '#1E1E1E',
+        borderWidth: 1,
+        borderColor: '#2A2A2A',
     },
     statusButtonSelected: {
         backgroundColor: '#2563EB',
+        borderColor: '#2563EB',
     },
     memberSection: {
         marginTop: 16,
-        gap: 8,
+        gap: 12,
     },
     memberChips: {
         flexDirection: 'row',
-        gap: 10,
+        gap: 12,
         paddingBottom: 35,
     },
     memberChip: {
         backgroundColor: '#1E1E1E',
         paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 16,
+        paddingVertical: 10,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#2A2A2A',
     },
     memberChipSelected: {
         backgroundColor: '#2563EB',
+        borderColor: '#2563EB',
     },
     memberChipText: {
         color: '#FFFFFF',
         fontSize: 14,
+        fontWeight: '500',
     },
     memberChipContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        borderRadius: 16,
-        paddingHorizontal: 16,
+        borderRadius: 20,
+        paddingLeft: 16,
         paddingRight: 10,
-        paddingVertical: 1.2,
+        paddingVertical: 2,
         overflow: 'visible',
         backgroundColor: '#1E1E1E',
+        borderWidth: 1,
+        borderColor: '#2A2A2A',
     },
     memberMainChip: {
+        paddingVertical: 8,
         paddingRight: 8,
     },
     emailIcon: {
         paddingLeft: 8,
         paddingVertical: 8,
         borderLeftWidth: 1,
-        borderLeftColor: '#333',
+        borderLeftColor: '#2A2A2A',
     },
     emailTooltip: {
         position: 'absolute',
@@ -612,8 +729,8 @@ const styles = StyleSheet.create({
         fontSize: 12,
     },
     requiredLabel: {
-        flexDirection: 'row' as const,
-        alignItems: 'center' as const,
+        flexDirection: 'row',
+        alignItems: 'center',
         gap: 4,
     },
     requiredField: {
@@ -621,7 +738,6 @@ const styles = StyleSheet.create({
         fontSize: 14,
     },
     inputError: {
-        borderWidth: 1,
         borderColor: '#FF4444',
     },
     errorText: {
@@ -631,5 +747,44 @@ const styles = StyleSheet.create({
     },
     disabledButton: {
         opacity: 0.5,
-    }
+    },
+    loadingContainer: {
+        padding: 20,
+        alignItems: 'center',
+        gap: 8,
+    },
+    loadingText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+    },
+    errorBanner: {
+        backgroundColor: '#FF444420',
+        padding: 16,
+        borderRadius: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 20,
+    },
+    errorBannerText: {
+        color: '#FF4444',
+        fontSize: 14,
+        flex: 1,
+    },
+    retryButton: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        backgroundColor: '#FF444420',
+        borderRadius: 6,
+    },
+    retryButtonText: {
+        color: '#FF4444',
+        fontSize: 14,
+        fontWeight: '500',
+    },
+    noProjectsText: {
+        color: '#666',
+        fontSize: 14,
+        padding: 8,
+    },
 });
