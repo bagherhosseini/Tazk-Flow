@@ -26,8 +26,7 @@ Follow these steps to get Tazk Flow running on your local machine:
 ### Steps  
 1. **Clone the Repository**:  
    ```bash  
-   git clone https://github.com/yourusername/task-flow.git  
-   cd task-flow
+   git clone https://github.com/bagherhosseini/Project-Management-App.git  
 2. **Install Dependencies**:
     ```bash 
     npm install  
@@ -38,7 +37,6 @@ Follow these steps to get Tazk Flow running on your local machine:
     ```bash 
     • Use the Expo Go app to scan the QR code.
     • Alternatively, use an Android/iOS emulator.
-
 ## Usage
 
 1. Launch the app.
