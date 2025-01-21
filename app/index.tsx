@@ -62,7 +62,7 @@ export default function Page() {
             <SafeAreaView style={[styles.container, styles.loadingContainer]}>
                 <StatusBar style="light" />
                 <ActivityIndicator size="large" color="#1E88E5" />
-                <Text style={styles.loadingText}>Loading TaskMaster...</Text>
+                <Text style={styles.loadingText}>Loading Tazk Flow...</Text>
             </SafeAreaView>
         );
     }
@@ -87,7 +87,7 @@ export default function Page() {
                         size={40}
                         color="#FFFFFF"
                     />
-                    <Text style={styles.title}>TaskMaster</Text>
+                    <Text style={styles.title}>Tazk Flow</Text>
                 </Animated.View>
 
                 <Animated.View 
@@ -100,7 +100,7 @@ export default function Page() {
                     ]}
                 >
                     <Text style={styles.welcomeText}>Welcome to</Text>
-                    <Text style={styles.appName}>TaskMaster</Text>
+                    <Text style={styles.appName}>Tazk Flow</Text>
                     <Text style={styles.subtitle}>
                         Organize your tasks efficiently and boost your productivity
                     </Text>

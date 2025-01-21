@@ -1,6 +1,6 @@
-# Task Flow - React Native Task Management App  
+# Tazk Flow - React Native Task Management App  
 
-Task Flow is a professional task management application built with React Native and Expo. It is designed to handle complex project workflows with customizable task statuses, team collaboration features, and real-time updates, offering a seamless cross-platform mobile experience.  
+Tazk Flow is a professional task management application built with React Native and Expo. It is designed to handle complex project workflows with customizable task statuses, team collaboration features, and real-time updates, offering a seamless cross-platform mobile experience.  
 
 ## Key Features  
 - **Custom Workflows:** Create flexible task statuses to adapt to your unique project requirements.  
@@ -17,7 +17,7 @@ Task Flow is a professional task management application built with React Native 
 
 ## Installation  
 
-Follow these steps to get Task Flow running on your local machine:  
+Follow these steps to get Tazk Flow running on your local machine:  
 
 ### Prerequisites  
 - [Node.js](https://nodejs.org/) installed on your system.  
