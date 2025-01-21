@@ -30,11 +30,9 @@ Follow these steps to get Task Flow running on your local machine:
    cd task-flow
 2. **Install Dependencies**:
     ```bash 
-    Kopiera kod
     npm install  
 3. Start the Development Server:
     ```bash 
-    Kopiera kod
     npx expo start  
 4. Run on Emulator or Device:
     ```bash 
